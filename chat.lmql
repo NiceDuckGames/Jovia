@@ -1,0 +1,87 @@
+from lmql.lib.chat import message
+import json
+
+import asyncio
+from langchain.embeddings.openai import OpenAIEmbeddings
+#from langchain.vectorstores import Chroma
+import chromadb
+
+data = []
+
+# get api key
+# TODO: Remove this in favor of a better approach
+openai_api_key = ""
+with open("api.env") as f:
+    line = f.readline()
+    openai_api_key = line.split(':')[1].strip()
+
+# load in an example command list
+with open("command_list_data.jsonl") as f:
+    for line in f:
+        data_line = json.loads(line)
+        data.append(data_line)
+
+# map the embedding of the command's prompts to the actual command
+command_prompts = []
+command_sequences = []
+for data_line in data:
+    command_prompts.append(data_line['prompt'])
+    command_sequences.append(data_line['response'])
+
+# Store embeddings and their documents in Chroma
+client = chromadb.EphemeralClient()
+collection = client.get_or_create_collection("commands")
+collection.add(
+    documents=command_prompts, # embed the prompts
+    metadatas=[{'command_sequence': json.dumps(c)} for c in command_sequences], # attach the command seq to the prompt
+    ids=[str(i) for i in range(len(command_prompts))] # generate ids for each stored document
+)
+
+def retreive_command_sequences(prompts):
+    return collection.query(
+        query_texts=prompts
+    )
+
+def documentation_search(prompt):
+    pass
+
+# TODO: create tools for the model to intelligently use
+# OR create keywords that the user can enter to instruct the model on what actions to take
+argmax 
+    """
+    {:system} You are a game design and development assistant experienced in using \
+    the Godot 4 game engine. \
+    When asked to complete a game development or design task \
+    respond with a breakdown of subtasks that are required.\
+    The tasks should be suitable propmts for a RAG based application to fetch examples.\
+    Ensure that the subtasks you generate are actions that a user can take within the Godot game engine.\
+    Output the list in the following manner: \
+    {{
+        "subtasks":[[
+            "task 1",
+            "task 2",
+        ]]
+    }}
+    Be sure to also explain the subtasks you come up with.\
+    Before answering provide \
+    some internal reasoning to reflect. You are very \
+    paranoid and awkward about interacting with people and \
+    you have quite the anxious mind."
+    """
+    subtasks = []
+    query_results = []
+    while True:
+        "{:user} {await input()}"
+        "{:assistant} Internal Reasoning:[REASONING]" \
+            where STOPS_AT(REASONING, "\n") and \
+                  STOPS_BEFORE(REASONING, "External Answer:")
+        "{:assistant} JSON response: [JSON_RESPONSE]"
+        
+        subtasks = json.loads(JSON_RESPONSE)["subtasks"]
+
+        # Fetch relevant subtasks
+        query_result = retreive_command_sequences(subtasks)
+        print(query_result)
+        "{:assistant} [@message DESCRIPTION_OF_SUBTASKS]"
+from
+   "chatgpt"
