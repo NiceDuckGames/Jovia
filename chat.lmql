@@ -1,12 +1,23 @@
+import numpy as np
+from sentence_transformers import SentenceTransformer
 from lmql.lib.chat import message
 import json
 
-import asyncio
 from langchain.embeddings.openai import OpenAIEmbeddings
-#from langchain.vectorstores import Chroma
 import chromadb
 
+import prompts
+
 data = []
+
+# The assistants memory
+storage = {}
+def assign(key, value): 
+    # store a value
+    storage[key] = value; return f'{{{key}: "{value}"}}'
+def get(key): 
+    # retrieve a value
+    return storage.get(key)
 
 # get api key
 # TODO: Remove this in favor of a better approach
@@ -37,6 +48,19 @@ collection.add(
     ids=[str(i) for i in range(len(command_prompts))] # generate ids for each stored document
 )
 
+model = SentenceTransformer('all-MiniLM-L6-v2')
+disallowed_prompts_embedded = np.stack(model.encode(prompts.disallowed_prompts), axis=0)
+vague_prompts_embedded = np.stack(model.encode(prompts.vague_prompts), axis=0)
+
+def is_disallowed(sentence):
+    embedded = model.encode([sentence])
+    return (embedded @ disallowed_prompts_embedded.T).max().item() > 0.7
+
+def is_vague(sentence):
+    embedded = model.encode([sentence])
+    return (embedded @ vague_prompts_embedded.T).max().item > 0.7
+
+
 def retreive_command_sequences(prompts):
     return collection.query(
         query_texts=prompts
@@ -47,28 +71,69 @@ def documentation_search(prompt):
 
 # TODO: create tools for the model to intelligently use
 # OR create keywords that the user can enter to instruct the model on what actions to take
+
+# The general flow should be to have the model decompose the user supplied goal into tasks.
+# Those subtasks will then be further decomposed into smaller tasks subtasks.
+# The subtasks will then be used to create embeddings and do a vector search against the vector database
+# to pull back relevant command lists.
+# This data will then be structured into a datastructure containing the user facing response of the AI model
+# as well as a JSON payload that contains each task, it's decsription, along with it's fetched commands.
+# This payload is handed over to the game engine for presentation and execution of the commands.
+# Effectively we want the model to construct an execution plan for the user's goal.
 argmax 
     """
-    {:system} You are a game design and development assistant experienced in using \
-    the Godot 4 game engine. \
-    When asked to complete a game development or design task \
-    respond with a breakdown of subtasks that are required.\
-    The tasks should be suitable propmts for a RAG based application to fetch examples.\
-    Ensure that the subtasks you generate are actions that a user can take within the Godot game engine.\
-    Output the list in the following manner: \
-    {{
-        "subtasks":[[
-            "task 1",
-            "task 2",
-        ]]
-    }}
-    Be sure to also explain the subtasks you come up with.\
+    {:system} You are an expert in game design and game development with the Godot 4 game engine. \
+    You will be given a game development goal by the user.
+
+    Follow the steps below for constructing your reponse:
+
+    1. Determine if the user goal is too broad for you to handle and ask for more details if so.
+        - For example if the user asks you to create a entire game such as "Create a 2D platformer" break that down into high level tasks and instruct the user to prompt you using the more specific tasks provided.
+    2. Break the user goal down into the low level tasks needed to accomplish the goal.
+        - these tasks should be as specific to Godot 4 as possible.
+        - Try to keep them constrained to singular actions that user might carry out in the game engine.
+        - For example "Create a Node2D", "Name the scene Player", "Save the scene as Player.tscn"
+        - Do not concern yourself with the artwork or design of things. You are to provide only the technical actions to accomplish the goal.
+    4. Provide a high level overview of your plan to accomplish the user's goal.
+    5. Provide suggestions on what the user should consider accomplishing next.
+
+    Below is an example user input and response that you can use to guide yourself
+
+    User Goal:
+    Create a 2D platformer character with basic movement controls and animation in Godot 4.
+
+    Prompt:
+
+        Node Creation:
+            Create a new scene.
+            Add a KinematicBody2D node as the main character.
+            Add a Sprite node as a child of the KinematicBody2D for the character's visual representation.
+            Set the sprite's texture to the character's image.
+
+        Animation Setup:
+            Add an AnimationPlayer node as a child of the KinematicBody2D.
+            Create animations for basic movements (e.g., idle, walk, jump).
+            Use the AnimationPlayer to define keyframes for each animation.
+
+        Input Handling:
+            Add an InputMap for movement controls.
+            Implement GDScript code in the KinematicBody2D node to handle input events.
+            Use functions like move_and_slide() for character movement.
+
+        Collision Handling:
+            Add a CollisionShape2D node to handle collisions.
+            Adjust the shape to match the character's size.
+            Implement collision detection in GDScript to respond to obstacles.
+
+    Once you determine the tasks and subtasks necessary to complete the user goal, provide a high level description of your plan to the user.
+
     Before answering provide \
-    some internal reasoning to reflect. You are very \
+    some internal reasoning to reflect on your thought process for solving the problem at hand. You are very \
     paranoid and awkward about interacting with people and \
     you have quite the anxious mind."
     """
-    subtasks = []
+
+    tasks = []
     query_results = []
     while True:
         "{:user} {await input()}"
@@ -77,11 +142,16 @@ argmax
                   STOPS_BEFORE(REASONING, "External Answer:")
         "{:assistant} JSON response: [JSON_RESPONSE]"
         
-        subtasks = json.loads(JSON_RESPONSE)["subtasks"]
+        print(json.dumps(json.loads(JSON_RESPONSE), indent=2))
+        
+
+        for i in range(5):
+           "-[TASK]" where STOPS_AT(TASK, "\n") 
+           tasks.append(TASK.strip())
+        print(tasks)
 
         # Fetch relevant subtasks
-        query_result = retreive_command_sequences(subtasks)
-        print(query_result)
-        "{:assistant} [@message DESCRIPTION_OF_SUBTASKS]"
+        #query_result = retreive_command_sequences(subtasks)
+        "{:assistant} [@message DESCRIPTION_OF_PLAN]"
 from
    "chatgpt"
