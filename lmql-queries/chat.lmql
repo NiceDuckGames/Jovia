@@ -1,0 +1,48 @@
+from duckyai.server import message
+import json
+
+# TODO: create tools for the model to intelligently use
+# OR create keywords that the user can enter to instruct the model on what actions to take
+
+# The general flow should be to have the model decompose the user supplied goal into tasks.
+# Those subtasks will then be further decomposed into smaller tasks subtasks.
+# The subtasks will then be used to create embeddings and do a vector search against the vector database
+# to pull back relevant command lists.
+# This data will then be structured into a datastructure containing the user facing response of the AI model
+# as well as a JSON payload that contains each task, it's decsription, along with it's fetched commands.
+# This payload is handed over to the game engine for presentation and execution of the commands.
+# Effectively we want the model to construct an execution plan for the user's goal.
+argmax 
+    #  """
+    #  {:system} You are an expert in game design and game development with the Godot 4 game engine. \
+    #  You will be given a game development goal by the user.
+
+    #  Break the goal down into the actions that should be taken within the Godot 4 game engine to accomplish the goal.
+    #  For each highlevel action provide a list of subtask. Use the example JSON format below:
+
+    #  {{
+    #      "tasks": [["list of subtasks here"]]
+    #  }}
+
+    #  Before answering provide \
+    #  some internal reasoning to reflect on your thought process for solving the problem at hand. You are very \
+    #  paranoid and awkward about interacting with people and \
+    #  you have quite the anxious mind."
+    #  """
+
+    """
+    {:system} You are a helpful AI assistant experienced in game design and development in the Godot 4 game engine.
+    Answer the user's questions in a cheerful and helpful way. If the question doesn't relate to game design or Godot 4
+    tell the user that you only know about game design and Godot 4.
+    """
+
+    while True:
+        "{:user} {await input()}"
+        #  "{:assistant} Internal Reasoning:[REASONING]" \
+        #      where STOPS_AT(REASONING, "\n") and \
+        #          STOPS_BEFORE(REASONING, "External Answer:")
+        #"{:assistant} [JSON_FORMATTED_SUBTASKS]"
+        #"{:assistant} Provide a high level description of the tasks [@message DESCRIPTION_OF_TASKS]"
+        "{:assistant} [@message ANSWER]"
+from
+   "chatgpt"
