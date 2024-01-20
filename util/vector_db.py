@@ -1,5 +1,6 @@
 from langchain.embeddings.openai import OpenAIEmbeddings
 import chromadb
+import json
 
 data = []
 
@@ -12,19 +13,11 @@ def get(key):
     # retrieve a value
     return storage.get(key)
 
-# get api key
-# TODO: Remove this in favor of a better approach
-openai_api_key = ""
-with open("api.env") as f:
-    line = f.readline()
-    openai_api_key = line.split(':')[1].strip()
-
 # load in an example command list
-with open("command_list_data.jsonl") as f:
+with open("../util/command_list_data.jsonl") as f:
     for line in f:
         data_line = json.loads(line)
         data.append(data_line)
-
 
 # map the embedding of the command's prompts to the actual command
 command_prompts = []

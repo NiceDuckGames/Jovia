@@ -144,20 +144,31 @@ class websocket_executor(ChatMessageOutputWriter):
             await self.ws.close()
 
     async def add_interpreter_head_state(self, variable, head, prompt, where, trace, is_valid, is_final, mask, num_tokens, program_variables): 
-        chunk = json.dumps({
+        variables = await program_variables.json()
+        print(variables)
+ 
+        chunk = {
             "type": "response",
             "message_id": self.message_id,
             "data": {
                 # always send the full prompt (you probably want to disable this for production use)
-                'prompt': prompt, 
+                #'prompt': prompt, 
                 'variables': {
                     # client expects all message output to be stored in the "ANSWER" variable (query may use different variable names)
-                    "ANSWER": self.current_message
+                    "ANSWER": self.current_message,
                 }
             }
-        })
+        }
 
-        await self.ws.send_str(chunk)
+        # Add a LMQL context variable if we have it
+        variable_value = variables.get(variable, None)
+
+        if variable_value is not None:
+            chunk["data"]["variables"][variable] = variable_value 
+
+        chunk_json = json.dumps(chunk)
+
+        await self.ws.send_str(chunk_json)
 
     async def input(self, *args):
         if self.user_input_fut is not None:

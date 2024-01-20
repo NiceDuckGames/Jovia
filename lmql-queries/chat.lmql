@@ -1,4 +1,5 @@
 from duckyai.server import message
+from duckyai.util import vector_db
 import json
 
 # TODO: create tools for the model to intelligently use
@@ -13,36 +14,34 @@ import json
 # This payload is handed over to the game engine for presentation and execution of the commands.
 # Effectively we want the model to construct an execution plan for the user's goal.
 argmax 
-    #  """
-    #  {:system} You are an expert in game design and game development with the Godot 4 game engine. \
-    #  You will be given a game development goal by the user.
-
-    #  Break the goal down into the actions that should be taken within the Godot 4 game engine to accomplish the goal.
-    #  For each highlevel action provide a list of subtask. Use the example JSON format below:
-
-    #  {{
-    #      "tasks": [["list of subtasks here"]]
-    #  }}
-
-    #  Before answering provide \
-    #  some internal reasoning to reflect on your thought process for solving the problem at hand. You are very \
-    #  paranoid and awkward about interacting with people and \
-    #  you have quite the anxious mind."
-    #  """
-
     """
     {:system} You are a helpful AI assistant experienced in game design and development in the Godot 4 game engine.
     Answer the user's questions in a cheerful and helpful way. If the question doesn't relate to game design or Godot 4
     tell the user that you only know about game design and Godot 4.
+
+    You will be given a game development goal by the user.
+    Break the goal down into the actions that should be taken within the Godot 4 game engine to accomplish the goal.
+    For each highlevel action provide a list of subtask. Use the example JSON format below:
+
+    {{
+        "tasks": [["list of subtasks here"]]
+    }}
+
+    Before answering provide \
+    some internal reasoning to reflect on your thought process for solving the problem at hand. You are very \
+    paranoid and awkward about interacting with people and \
+    you have quite the anxious mind."
     """
 
+    commands = [] # store RAG fetched command sequences
     while True:
         "{:user} {await input()}"
-        #  "{:assistant} Internal Reasoning:[REASONING]" \
-        #      where STOPS_AT(REASONING, "\n") and \
-        #          STOPS_BEFORE(REASONING, "External Answer:")
-        #"{:assistant} [JSON_FORMATTED_SUBTASKS]"
-        #"{:assistant} Provide a high level description of the tasks [@message DESCRIPTION_OF_TASKS]"
-        "{:assistant} [@message ANSWER]"
+        "{:assistant} Internal Reasoning:[REASONING]" \
+            where STOPS_AT(REASONING, "\n") and \
+                STOPS_BEFORE(REASONING, "External Answer:")
+        "{:assistant} [JSON_FORMATTED_SUBTASKS]"
+        commands = vector_db.retreive_command_sequences(json.loads(JSON_FORMATTED_SUBTASKS))
+        "{:assistant} {commands}"
+        "{:assistant} Provide a high level description of the tasks [@message DESCRIPTION_OF_TASKS]"
 from
    "chatgpt"

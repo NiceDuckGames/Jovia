@@ -1,5 +1,5 @@
 import prompts
-from sentence_transformers import SentenceTransformers
+from sentence_transformers import SentenceTransformer
 
 # map the embedding of the command's prompts to the actual command
 command_prompts = []
