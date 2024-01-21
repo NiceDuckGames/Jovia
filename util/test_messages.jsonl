@@ -1,3 +1,4 @@
 {"type":"input","text":"hello how are you today?"}
-{"type":"input","text":"create a 2D platformer character with a double jump ability."}
+{"type":"input","text":"task: create a 2D platformer character with a double jump ability."}
+{"type":"input","text":"goal: create a multiplayer system lobby for my game."}
 {"type":"init"}

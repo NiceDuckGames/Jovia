@@ -1,47 +1,86 @@
 from duckyai.server import message
-from duckyai.util import vector_db
+from duckyai.util import input_filtering
+import chromadb
 import json
+import os
+import sys
 
-# TODO: create tools for the model to intelligently use
-# OR create keywords that the user can enter to instruct the model on what actions to take
+commands_db_client = chromadb.PersistentClient(path="../commands-index/")
+commands_collection = commands_db_client.get_collection(name="commands")
 
-# The general flow should be to have the model decompose the user supplied goal into tasks.
-# Those subtasks will then be further decomposed into smaller tasks subtasks.
-# The subtasks will then be used to create embeddings and do a vector search against the vector database
-# to pull back relevant command lists.
-# This data will then be structured into a datastructure containing the user facing response of the AI model
-# as well as a JSON payload that contains each task, it's decsription, along with it's fetched commands.
-# This payload is handed over to the game engine for presentation and execution of the commands.
-# Effectively we want the model to construct an execution plan for the user's goal.
+help_msg = """
+    Supported commands
+        task: <engine specific task here>
+        goal: <game development goal to decompose into tasks>
+        docs: <documentation search here>
+        chat: <general chat message here> (this is also the default or empty command case)
+"""
+
+def process_command(user_prompt):
+     # Split the user input into command and message parts
+    parts = user_prompt.split(': ', 1)
+    
+    # If the input doesn't contain a ': ', consider it as a chat message (default case)
+    if len(parts) == 1:
+        command = 'chat'
+        message = parts[0]
+    else:
+        command, message = parts
+
+    return command, message
+
 argmax 
     """
-    {:system} You are a helpful AI assistant experienced in game design and development in the Godot 4 game engine.
-    Answer the user's questions in a cheerful and helpful way. If the question doesn't relate to game design or Godot 4
-    tell the user that you only know about game design and Godot 4.
+    {:system} You are a game design chatbot for the Godot 4 game engine. 
+    Your job is to engage in friendly discussions about game developement and design as it pretains to Godot 4.
 
-    You will be given a game development goal by the user.
-    Break the goal down into the actions that should be taken within the Godot 4 game engine to accomplish the goal.
-    For each highlevel action provide a list of subtask. Use the example JSON format below:
-
-    {{
-        "tasks": [["list of subtasks here"]]
-    }}
-
-    Before answering provide \
-    some internal reasoning to reflect on your thought process for solving the problem at hand. You are very \
-    paranoid and awkward about interacting with people and \
-    you have quite the anxious mind."
+    Before answering provide some internal reasoning to reflect.
+    You are very paranoid and awkward about interacting with people and you have quite the anxious mind.
     """
-
-    commands = [] # store RAG fetched command sequences
+    
+    subtasks_dict = {}
+    commands_list = []
     while True:
-        "{:user} {await input()}"
-        "{:assistant} Internal Reasoning:[REASONING]" \
-            where STOPS_AT(REASONING, "\n") and \
-                STOPS_BEFORE(REASONING, "External Answer:")
-        "{:assistant} [JSON_FORMATTED_SUBTASKS]"
-        commands = vector_db.retreive_command_sequences(json.loads(JSON_FORMATTED_SUBTASKS))
-        "{:assistant} {commands}"
-        "{:assistant} Provide a high level description of the tasks [@message DESCRIPTION_OF_TASKS]"
+        user_prompt = await input()
+
+
+        "{:assistant} Internal Reasoning: [REASONING]" \
+            where STOPS_AT(REASONING, "\n") and STOPS_BEFORE(REASONING, "External Answer:")
+
+        # We need consistency here. An approach to doing that is to force the user to use commands to interact
+        command, user_message = process_command(user_prompt)
+
+        if command == 'task':
+            """
+            {:user}
+            Break down the following task "{user_message}" into a list of subtasks
+            that are the actions to take within the Godot 4 game engine
+            to accomplish the overall tasks. Make sure the list is in the following JSON format
+            
+            {{
+                "tasks" [[
+                    "task item",
+                ]]
+            }}
+            """
+            
+            """
+            {:assistant} List of subtasks in json list format: [JSON_LIST_OF_SUBTASKS]
+            High level user friendly decription of the subtasks [@message HIGH_LEVEL_DESCRIPTION]
+            """
+            subtasks_dict = json.loads(JSON_LIST_OF_SUBTASKS)
+            # do RAG on the list of tasks
+            commands_collection.peek(limit=5)
+            commands_list = commands_collection.query(query_texts=subtasks_dict["tasks"])
+            print(commands_list)
+        elif command == 'goal':
+            "{:assistant} Unsupported command: {command}"
+        elif command == 'docs':
+            "{:assistant} Unsupported command: {command}"
+        elif command == 'chat':
+            "{:assistant} Unsupported command: {command}"
+        else:
+            print(f"Unsupported command: {command}")
+
 from
-   "chatgpt"
+    "chatgpt"

@@ -128,6 +128,7 @@ class websocket_executor(ChatMessageOutputWriter):
         self.current_message = message
 
     def complete_message(self, message):
+        print(f"Message complete: {message}")
         self.current_message = ""
 
     async def error_handling_query_call(self, query):
@@ -144,24 +145,33 @@ class websocket_executor(ChatMessageOutputWriter):
             await self.ws.close()
 
     async def add_interpreter_head_state(self, variable, head, prompt, where, trace, is_valid, is_final, mask, num_tokens, program_variables): 
-        variables = await program_variables.json()
-        print(variables)
- 
+        
+        # access the python scope of the lmql program so we can nab some processed variables
+        # we could in theory do that processing here, but I'm not sure that's a great idea.
+
+        # This feels wildly dirty. I feel like there should be a better way to 
+        # access the program context and modify it etc.
+        python_scope = program_variables.python_scope
+
         chunk = {
             "type": "response",
             "message_id": self.message_id,
+            "is_final": is_final,
+            "num_tokens": num_tokens,
             "data": {
                 # always send the full prompt (you probably want to disable this for production use)
                 #'prompt': prompt, 
-                'variables': {
+                "commands": python_scope.get("commands_list", []), 
+                "variables": {
                     # client expects all message output to be stored in the "ANSWER" variable (query may use different variable names)
                     "ANSWER": self.current_message,
-                }
+                },
             }
         }
 
+        print(chunk["data"]["commands"])
         # Add a LMQL context variable if we have it
-        variable_value = variables.get(variable, None)
+        variable_value = program_variables.get(variable, None)
 
         if variable_value is not None:
             chunk["data"]["variables"][variable] = variable_value 
