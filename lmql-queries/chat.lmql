@@ -1,5 +1,6 @@
 from duckyai.server import message
 from duckyai.util import input_filtering
+import lmql
 import chromadb
 import json
 import os
@@ -16,7 +17,10 @@ help_msg = """
         chat: <general chat message here> (this is also the default or empty command case)
 """
 
-def process_command(user_prompt):
+def retreive_commands(tasks: list):
+    return commands_collection.query(query_texts=tasks)
+
+def parse_command(user_prompt):
      # Split the user input into command and message parts
     parts = user_prompt.split(': ', 1)
     
@@ -29,6 +33,34 @@ def process_command(user_prompt):
 
     return command, message
 
+@lmql.query
+async def task_decomposition(prompt):
+    '''lmql
+    """
+    {:user}
+    Here is the following task {prompt}. Decompose it into a JSON list of subtasks like follows:
+
+    [["subtask1","subtask2","subtaskN"]]
+
+    Do not include subtasks that would require the user to use tools that are outside of Godot 4.
+    ONLY generate subtasks which are actions that can be carried out within the Godot 4 game engine.
+    Do not include newlines or any sort of numbering or list items that prefix each subtask.
+
+    [JSON_LIST_OF_SUBTASKS]
+    """
+    return JSON_LIST_OF_SUBTASKS.strip()
+    '''
+
+@lmql.query
+async def task_summarization(prompt):
+    '''lmql
+    """
+    {:assistant}
+    A high level summary of the following list of subtasks {prompt} [HIGH_LEVEL_SUMMARY]
+    """
+    return HIGH_LEVEL_SUMMARY.strip() 
+    '''
+
 argmax 
     """
     {:system} You are a game design chatbot for the Godot 4 game engine. 
@@ -38,41 +70,24 @@ argmax
     You are very paranoid and awkward about interacting with people and you have quite the anxious mind.
     """
     
-    subtasks_dict = {}
-    commands_list = []
     while True:
         user_prompt = await input()
-
 
         "{:assistant} Internal Reasoning: [REASONING]" \
             where STOPS_AT(REASONING, "\n") and STOPS_BEFORE(REASONING, "External Answer:")
 
         # We need consistency here. An approach to doing that is to force the user to use commands to interact
-        command, user_message = process_command(user_prompt)
+        command, user_message = parse_command(user_prompt)
 
         if command == 'task':
-            """
-            {:user}
-            Break down the following task "{user_message}" into a list of subtasks
-            that are the actions to take within the Godot 4 game engine
-            to accomplish the overall tasks. Make sure the list is in the following JSON format
-            
-            {{
-                "tasks" [[
-                    "task item",
-                ]]
-            }}
-            """
-            
-            """
-            {:assistant} List of subtasks in json list format: [JSON_LIST_OF_SUBTASKS]
-            High level user friendly decription of the subtasks [@message HIGH_LEVEL_DESCRIPTION]
-            """
-            subtasks_dict = json.loads(JSON_LIST_OF_SUBTASKS)
-            # do RAG on the list of tasks
-            commands_collection.peek(limit=5)
-            commands_list = commands_collection.query(query_texts=subtasks_dict["tasks"])
-            print(commands_list)
+            print("HEEY")
+            subtasks = await task_decomposition(user_message)
+            summary = await task_summarization(subtasks)
+            print(subtasks)
+            print(summary)
+
+            query_results = retreive_commands(json.loads(subtasks))
+            print(query_results)
         elif command == 'goal':
             "{:assistant} Unsupported command: {command}"
         elif command == 'docs':
@@ -80,7 +95,7 @@ argmax
         elif command == 'chat':
             "{:assistant} Unsupported command: {command}"
         else:
-            print(f"Unsupported command: {command}")
+            "{:assistant} Unsupported command: {command}"
 
 from
     "chatgpt"
