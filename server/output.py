@@ -1,6 +1,12 @@
 import lmql
 from lmql.runtime.output_writer import BaseOutputWriter
 
+class WebSocketServerOutputWriter(BaseOutputWriter):
+    '''
+    TODO: implement this as a writer that can extract variables from queries 
+    '''
+    pass
+
 class ChatMessageOutputWriter(BaseOutputWriter):
     """
     An output writer with additional methods to stream messages annotated as @lmql.lib.chat.message.

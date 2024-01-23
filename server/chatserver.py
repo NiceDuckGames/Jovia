@@ -2,12 +2,54 @@ import lmql
 import os
 import json
 import asyncio
+import chromadb
 
 from lmql.runtime.bopenai import get_stats
 from aiohttp import web
 
-from duckyai.server.output import ChatMessageOutputWriter
-from duckyai.server.output import *
+from server.output import ChatMessageOutputWriter
+from server.output import *
+from queries.queries import *
+from util.prompts import godot_assistant_system_prompt
+import util.vector_ops as vops
+
+commands_db_client = chromadb.PersistentClient(path="../commands-index/")
+commands_collection = commands_db_client.get_collection(name="commands")
+
+def parse_command(user_prompt):
+     # Split the user input into command and message parts
+    parts = user_prompt.split(': ', 1)
+    
+    # If the input doesn't contain a ': ', consider it as a chat message (default case)
+    if len(parts) == 1:
+        command = 'chat'
+        message = parts[0]
+    else:
+        command, message = parts
+
+    return command, message
+
+async def command_handler(user_prompt):
+    # We need consistency here. An approach to doing that is to force the user to use commands to interact
+    command, user_message = parse_command(user_prompt)
+
+    if command == 'task':
+        print("HEEY")
+        subtasks = await task_decomposition("", user_message)
+        summary = await task_summarization("", subtasks)
+        print(subtasks)
+        print(summary)
+
+        query_results = vops.retrieve_command_sequences(commands_collection, json.loads(subtasks))
+        print(query_results)
+    elif command == 'goal':
+        "{:assistant} Unsupported command: {command}"
+    elif command == 'docs':
+        "{:assistant} Unsupported command: {command}"
+    elif command == 'chat':
+        "{:assistant} Unsupported command: {command}"
+    else:
+        "{:assistant} Unsupported command: {command}"
 
 class ChatServer:
     """
@@ -27,14 +69,17 @@ class ChatServer:
         The host to serve the chat application on. Default: 'localhost'
 
     """
-    def __init__(self, query, port=8089, host='localhost'):
+    def __init__(self, port=8089, host='localhost'):
         self.port = port
         self.host = host
-        self.query = query
 
+        # Holds async executors that map to each connection
         self.executors = []
 
     def make_query(self):
+        '''
+        Make a query from a LMQL file 
+        '''
         if callable(self.query):
             # first check if we already have a query function
             return self.query
@@ -59,7 +104,7 @@ class ChatServer:
             await ws.close()
             return ws
 
-        chat_executor = websocket_executor(chatbot, ws)
+        chat_executor = websocket_executor(ws)
         self.executors.append(chat_executor)
         
         async for msg in ws:
@@ -70,12 +115,16 @@ class ChatServer:
                     data = json.loads(msg.data)
                     print(data)
                     if data["type"] == "input":
-                        if chat_executor.user_input_fut is not None:
-                            fut = chat_executor.user_input_fut
-                            chat_executor.user_input_fut = None
-                            fut.set_result(data["text"])
-                        else:
-                            print("warning: got input but query is not waiting for input", flush=True)
+                        # Handle the user input, this will invoke the correct query for the input
+                        print("Got input, invoking LMQL query.")  
+                        command_handler(data["text"])
+                        #we got a user input message
+                        # if chat_executor.user_input_fut is not None:
+                            # fut = chat_executor.user_input_fut
+                            # chat_executor.user_input_fut = None
+                            # fut.set_result(data["text"])
+                        # else:
+                            # print("warning: got input but query is not waiting for input", flush=True)
             elif msg.type == web.WSMsgType.ERROR:
                 print('ws connection closed with exception %s' %
                     ws.exception())
@@ -97,7 +146,7 @@ class ChatServer:
         await runner.setup()
         site = web.TCPSite(runner, self.host, self.port)
         await site.start()
-        print('🤖 Your LMQL chatbot API is waiting for you at ws://{}:{}'.format(self.host, self.port), flush=True)
+        print('🤖 Your chatbot API is waiting for you at ws://{}:{}'.format(self.host, self.port), flush=True)
         
         # idle to keep the server running
         while True:
@@ -112,10 +161,10 @@ class websocket_executor(ChatMessageOutputWriter):
     Encapsulates the continuous execution of an LMQL query function and
     streams I/O via a provided WebSocket connection.
     """
-    def __init__(self, query, ws):
+    def __init__(self, ws):
         self.user_input_fut = None
         self.ws = ws
-        self.chatbot_task = asyncio.create_task(self.error_handling_query_call(query), name='chatbot query')
+        # self.chatbot_task = asyncio.create_task(self.error_handling_query_call(query), name='chatbot query')
         self.message_id = 0
         
         self.current_message = ""
