@@ -1,5 +1,5 @@
 [package]
-name = "duckyai-server"
+name = "server"
 version = "0.1.0"
 edition = "2021"
 
@@ -9,4 +9,6 @@ edition = "2021"
 actix = "0.13.1"
 actix-web = "4.4.1"
 actix-web-actors = "4.2.0"
+inference = { version = "0.1.0", path = "../inference" }
+qdrant-client = "1.7.0"
 tokio = "1.35.1"
