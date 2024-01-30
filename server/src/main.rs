@@ -2,6 +2,9 @@ use actix::{Actor, StreamHandler};
 use actix_web::{web, App, Error, HttpRequest, HttpResponse, HttpServer};
 use actix_web_actors::ws;
 
+// Inference stuff
+use inference::*;
+
 /// Define HTTP actor
 struct WSActor;
 

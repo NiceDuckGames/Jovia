@@ -10,7 +10,8 @@ use candle_transformers::models::mixformer::{Config, MixFormerSequentialForCausa
 use candle_transformers::models::phi::{Config as PhiConfig, Model as Phi};
 use candle_transformers::models::quantized_mixformer::MixFormerSequentialForCausalLM as QMixFormer;
 
-use candle::{DType, Device, Tensor};
+use candle_core::{DType, Device, Tensor};
+//use candle::{DType, Device, Tensor};
 use candle_nn::VarBuilder;
 use candle_transformers::generation::LogitsProcessor;
 use hf_hub::{api::sync::Api, Repo, RepoType};

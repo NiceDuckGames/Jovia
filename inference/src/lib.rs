@@ -1,5 +1,7 @@
 // expose an inference API
-
+pub mod embedding;
+pub mod text_generation;
+pub mod prompts;
 
 pub fn add(left: usize, right: usize) -> usize {
     left + right
