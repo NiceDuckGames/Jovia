@@ -5,21 +5,18 @@ use candle_nn::VarBuilder;
 use tokenizers::{PaddingParams, Tokenizer}
 use candle_transformers::models::bert::{BertModel, Config, HiddenAct, DTYPE};
 
-struct Args {
-    cpu: bool,
+struct EmbeddingModel {
     tracing: bool,
     model_id: Option<String>,
     revision: Option<String>,
-    prompt: Option<String>,
-    n: usize,
-    // L2 normalization for embeddings.
-    normalize_embeddings: bool,
-    // Use tanh based approximation for Gelu instead of erf implementation
-    approximate_gelu: bool,
+    model: BertModel,
+    tokenizer: Tokenizer,
+    device: Device,
 }
 
-impl Args {
-    fn build_model_and_tokenizer(&self) -> Result<(BertModel, Tokenizer)> {
+impl BertModel {
+    // Construct the model wrapper
+    fn new(cpu: bool, tracing: bool, model_id: Option<String>, revision: Option<String>) -> Self {
         let device = Device::cpu;
         let default_model = "sentence-transformers/all-MiniLM-L6-v2".to_string();
         let default_revision = "refs/pr/21".to_string();
@@ -42,36 +39,44 @@ impl Args {
             config.hidden_act = HiddenAct::GeluApproximate;
         }
         let model = BertModel::load(vb, &config)?;
-        Ok((model, tokenizer))
+
+        EmbeddingModel {
+            tracing
+            default_model,
+            default_revision,
+            model,
+            tokenizer,
+            device,
+        }
     }
+
+    // Takes a prompt string and embeds it returning a Tensor result
+    fn embed(&self, prompt: String) -> Tensor {
+        let args = Args{}
+    
+        let (model, mut tokenizer) = args.build_model_and_tokenizer()?;
+        let device = &model.device;
+    
+        let tokenizer = tokenizer
+            .with_padding(None)
+            .with_truncation(None)
+            .map_err(E::msg)?;
+    
+        let tokens = tokenizer
+            .encode(prompt, true)
+            .map_err(E::msg)?
+            .get_ids()
+            .to_vec();
+    
+        let token_ids = Tensor::new(&tokens[..], device)?.unsqueeze(0)?;
+        let token_type_ids = token_ids.zeros_like()?;
+    
+        let embedding = model.forward(&token_ids, &token_type_ids)?;
+        embedding
+    }
+    
+    fn similarity(&self, embedding: Tensor) {}
 }
-
-// Takes a prompt string and embeds it returning a Tensor result
-fn embed(prompt: String) -> Tensor {
-    let args = Args{}
-
-    let (model, mut tokenizer) = args.build_model_and_tokenizer()?;
-    let device = &model.device;
-
-    let tokenizer = tokenizer
-        .with_padding(None)
-        .with_truncation(None)
-        .map_err(E::msg)?;
-
-    let tokens = tokenizer
-        .encode(prompt, true)
-        .map_err(E::msg)?
-        .get_ids()
-        .to_vec();
-
-    let token_ids = Tensor::new(&tokens[..], device)?.unsqueeze(0)?;
-    let token_type_ids = token_ids.zeros_like()?;
-
-    let embedding = model.forward(&token_ids, &token_type_ids)?;
-    embedding
-}
-
-fn similarity() {}
 
 pub fn normalize_l2(v: &Tensor) -> Result<Tensor> {
     Ok(v.broadcast_div(&v.sqr()?.sum_keepdim(1)?.sqrt()?)?)
