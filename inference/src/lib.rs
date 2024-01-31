@@ -21,7 +21,14 @@ mod tests {
 
     #[test]
     fn instantiate_embedding_modle() {
-        let em = EmbeddingModel::new(true, false, None, None);
-        println!("{em:?}");
+        let em_result = EmbeddingModel::new(true, false, None, None);
+        match em_result {
+            Ok(_) => {
+                assert!(true);
+            }
+            Err(_) => {
+                assert!(false);
+            }
+        }
     }
 }

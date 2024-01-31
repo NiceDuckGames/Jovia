@@ -35,7 +35,11 @@ impl EmbeddingModel {
             default_revision = revision;
         }
 
-        let repo = Repo::with_revision(default_model, RepoType::Model, default_revision);
+        let repo = Repo::with_revision(
+            default_model.clone(),
+            RepoType::Model,
+            default_revision.clone(),
+        );
         let (config_filename, tokenizer_filename, weights_filename) = {
             let api = Api::new()?;
             let api = api.repo(repo);
@@ -64,10 +68,10 @@ impl EmbeddingModel {
     // Takes a prompt string and embeds it returning a Tensor result
     pub fn embed(&self, prompt: String) -> Result<Tensor, E> {
         let model = &self.model;
-        let mut tokenizer = &self.tokenizer;
+        let mut tokenizer = self.tokenizer.clone();
         let device = &model.device;
 
-        let tokenizer = &mut tokenizer
+        let tokenizer = tokenizer
             .with_padding(None)
             .with_truncation(None)
             .map_err(E::msg)?;
