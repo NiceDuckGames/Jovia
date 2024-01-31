@@ -7,12 +7,12 @@ use hf_hub::{Repo, RepoType};
 use tokenizers::{PaddingParams, Tokenizer};
 
 pub struct EmbeddingModel {
-    tracing: bool,
-    model_id: Option<String>,
-    revision: Option<String>,
-    model: BertModel,
-    tokenizer: Tokenizer,
-    device: Device,
+    pub tracing: bool,
+    pub model_id: Option<String>,
+    pub revision: Option<String>,
+    pub model: BertModel,
+    pub tokenizer: Tokenizer,
+    pub device: Device,
 }
 
 impl EmbeddingModel {
@@ -89,8 +89,16 @@ impl EmbeddingModel {
 
         Ok(embedding)
     }
+
+    /*pub fn embed_batch(&self, prompts: Vec<String>) -> Result<Tensor, E> {
+
+    }*/
 }
 
-pub fn similarity(a: Tensor, b: Tensor) -> Result<i32, E> {
-    Ok(1)
+pub fn cos_similarity(a: Tensor, b: Tensor) -> Result<f32, E> {
+    let sum_ab = (&a * &b)?.sum_all()?.to_scalar::<f32>()?;
+    let sum_aa = (&a * &b)?.sum_all()?.to_scalar::<f32>()?;
+    let sum_bb = (&a * &b)?.sum_all()?.to_scalar::<f32>()?;
+    let cosine_similarity = sum_ab / (sum_aa * sum_bb).sqrt();
+    Ok(cosine_similarity)
 }
