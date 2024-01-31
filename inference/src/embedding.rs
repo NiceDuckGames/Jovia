@@ -89,8 +89,8 @@ impl EmbeddingModel {
 
         Ok(embedding)
     }
+}
 
-    pub fn similarity(&self, a: Tensor, b: Tensor) -> Result<i32, E> {
-        Ok(1)
-    }
+pub fn similarity(a: Tensor, b: Tensor) -> Result<i32, E> {
+    Ok(1)
 }
