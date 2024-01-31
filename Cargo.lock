@@ -454,9 +454,9 @@ checksum = "9d297deb1925b89f2ccc13d7635fa0714f12c87adce1c75356b39ca9b7178567"
 
 [[package]]
 name = "bindgen_cuda"
-version = "0.1.1"
+version = "0.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b58b8c5f0502d6b70e957f2562b65cef7b2056996b27da47e43242d46251a9d1"
+checksum = "fcb349f499c53ad8d7b98e9657c61d6225c2812bac84504a97373e3884ca9bac"
 dependencies = [
  "glob",
  "num_cpus",
