@@ -3,19 +3,9 @@ pub mod embedding;
 pub mod prompts;
 pub mod text_generation;
 
-pub fn add(left: usize, right: usize) -> usize {
-    left + right
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
-    }
 
     use anyhow::{Error as E, Result};
     use candle_core::Tensor;
@@ -69,7 +59,41 @@ mod tests {
         let token_type_ids = token_ids.zeros_like().unwrap();
         let embeddings = em.model.forward(&token_ids, &token_type_ids).unwrap();
 
-        println!("{:?}", embeddings);
         assert!(true);
+    }
+
+    #[test]
+    fn test_embedding_consine_similarity() {
+        let sentences = ["The cat sits outside", "The cat sits outside"];
+        let n_sentences = sentences.len();
+
+        let em = EmbeddingModel::new(true, false, None, None).unwrap();
+
+        let tokens = em
+            .tokenizer
+            .encode_batch(sentences.to_vec(), true)
+            .map_err(E::msg)
+            .unwrap();
+
+        let token_ids = tokens
+            .iter()
+            .map(|tokens| {
+                let tokens = tokens.get_ids().to_vec();
+                Ok(Tensor::new(tokens.as_slice(), &em.device)?)
+            })
+            .collect::<Result<Vec<_>>>()
+            .unwrap();
+
+        let token_ids = Tensor::stack(&token_ids, 0).unwrap();
+        let token_type_ids = token_ids.zeros_like().unwrap();
+        let embeddings = em.model.forward(&token_ids, &token_type_ids).unwrap();
+
+        let threshold = 0.7;
+        let e1 = embeddings.get(0).unwrap();
+        let e2 = embeddings.get(1).unwrap();
+        let similarity = cos_similarity(e1, e2).unwrap();
+        println!("self similarity {:?} {:?}", sentences.get(0), similarity);
+
+        assert_eq!(similarity, 1.0);
     }
 }
