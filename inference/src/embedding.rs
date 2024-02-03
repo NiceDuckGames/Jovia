@@ -90,9 +90,28 @@ impl EmbeddingModel {
         Ok(embedding)
     }
 
-    /*pub fn embed_batch(&self, prompts: Vec<String>) -> Result<Tensor, E> {
+    pub fn embed_batch(&self, sentences: Vec<String>) -> Result<Tensor, E> {
+        let tokens = self
+            .tokenizer
+            .encode_batch(sentences, true)
+            .map_err(E::msg)
+            .unwrap();
 
-    }*/
+        let token_ids = tokens
+            .iter()
+            .map(|tokens| {
+                let tokens = tokens.get_ids().to_vec();
+                Ok(Tensor::new(tokens.as_slice(), &self.device)?)
+            })
+            .collect::<Result<Vec<_>>>()
+            .unwrap();
+
+        let token_ids = Tensor::stack(&token_ids, 0)?;
+        let token_type_ids = token_ids.zeros_like()?;
+        let embeddings = self.model.forward(&token_ids, &token_type_ids)?;
+
+        Ok(embeddings)
+    }
 }
 
 pub fn cos_similarity(a: Tensor, b: Tensor) -> Result<f32, E> {

@@ -26,7 +26,7 @@ mod tests {
 
     #[test]
     fn test_sentence_embedding() {
-        let sentences = [
+        let sentences: Vec<String> = [
             "The cat sits outside",
             "A man is playing guitar",
             "I love pasta",
@@ -35,64 +35,32 @@ mod tests {
             "A woman watches TV",
             "The new movie is so great",
             "Do you like pizza?",
-        ];
+        ]
+        .iter()
+        .map(|s| s.to_string())
+        .collect();
+
         let n_sentences = sentences.len();
 
         let em = EmbeddingModel::new(true, false, None, None).unwrap();
-
-        let tokens = em
-            .tokenizer
-            .encode_batch(sentences.to_vec(), true)
-            .map_err(E::msg)
-            .unwrap();
-
-        let token_ids = tokens
-            .iter()
-            .map(|tokens| {
-                let tokens = tokens.get_ids().to_vec();
-                Ok(Tensor::new(tokens.as_slice(), &em.device)?)
-            })
-            .collect::<Result<Vec<_>>>()
-            .unwrap();
-
-        let token_ids = Tensor::stack(&token_ids, 0).unwrap();
-        let token_type_ids = token_ids.zeros_like().unwrap();
-        let embeddings = em.model.forward(&token_ids, &token_type_ids).unwrap();
+        let embeddings = em.embed_batch(sentences);
 
         assert!(true);
     }
 
     #[test]
     fn test_embedding_consine_similarity() {
-        let sentences = ["The cat sits outside", "The cat sits outside"];
-        let n_sentences = sentences.len();
+        let sentences: Vec<String> = ["The cat sits outside", "The cat sits outside"]
+            .iter()
+            .map(|s| s.to_string())
+            .collect();
 
         let em = EmbeddingModel::new(true, false, None, None).unwrap();
+        let embeddings = em.embed_batch(sentences).unwrap();
 
-        let tokens = em
-            .tokenizer
-            .encode_batch(sentences.to_vec(), true)
-            .map_err(E::msg)
-            .unwrap();
-
-        let token_ids = tokens
-            .iter()
-            .map(|tokens| {
-                let tokens = tokens.get_ids().to_vec();
-                Ok(Tensor::new(tokens.as_slice(), &em.device)?)
-            })
-            .collect::<Result<Vec<_>>>()
-            .unwrap();
-
-        let token_ids = Tensor::stack(&token_ids, 0).unwrap();
-        let token_type_ids = token_ids.zeros_like().unwrap();
-        let embeddings = em.model.forward(&token_ids, &token_type_ids).unwrap();
-
-        let threshold = 0.7;
         let e1 = embeddings.get(0).unwrap();
         let e2 = embeddings.get(1).unwrap();
         let similarity = cos_similarity(e1, e2).unwrap();
-        println!("self similarity {:?} {:?}", sentences.get(0), similarity);
 
         assert_eq!(similarity, 1.0);
     }
