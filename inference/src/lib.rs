@@ -68,7 +68,7 @@ mod tests {
     }
 
     #[test]
-    fn test_textgeneration_instantiate() {
+    fn test_textgeneration_run() {
         let prompt = "What is the capital Ireland?".to_string();
         let mut pipeline =
             TextGeneration::new(None, None, 299792458, None, None, 1.1, 64, false).unwrap();
