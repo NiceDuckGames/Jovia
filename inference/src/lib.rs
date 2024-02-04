@@ -5,6 +5,8 @@ pub mod text_generation;
 
 #[cfg(test)]
 mod tests {
+    use crate::text_generation::TextGeneration;
+
     use super::*;
 
     use anyhow::{Error as E, Result};
@@ -63,5 +65,13 @@ mod tests {
         let similarity = cos_similarity(e1, e2).unwrap();
 
         assert_eq!(similarity, 1.0);
+    }
+
+    #[test]
+    fn test_textgeneration_instantiate() {
+        let prompt = "What is the capital Ireland?".to_string();
+        let mut pipeline =
+            TextGeneration::new(None, None, 299792458, None, None, 1.1, 64, false).unwrap();
+        pipeline.run(&prompt, 500).unwrap();
     }
 }
