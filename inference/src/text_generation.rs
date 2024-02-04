@@ -1,4 +1,5 @@
 use anyhow::{Error as E, Result};
+use candle_core::utils::cuda_is_available;
 use candle_core::{DType, Device, Tensor};
 use candle_nn::VarBuilder;
 use candle_transformers::generation::LogitsProcessor;
@@ -47,12 +48,13 @@ impl TextGeneration {
             RepoType::Model,
             default_revision.clone(),
         );
-        let (config_filename, tokenizer_filename, weights_filename) = {
+        let (config_filename, tokenizer_filename, weights_filenames) = {
             let api = Api::new()?;
             let api = api.repo(repo);
             let config = api.get("config.json")?;
             let tokenizer = api.get("tokenizer.json")?;
-            let weights = api.get("model.safetensors")?;
+            //let weights = api.get("model.safetensors.index.json")?;
+            let weights = hub_load_safetensors(&api, "model.safetensors.index.json")?;
             (config, tokenizer, weights)
         };
 
@@ -60,7 +62,7 @@ impl TextGeneration {
         let mut config: PhiConfig = serde_json::from_str(&config)?;
         let tokenizer = Tokenizer::from_file(tokenizer_filename).map_err(E::msg)?;
         let vb = unsafe {
-            VarBuilder::from_mmaped_safetensors(&[weights_filename], DType::F32, &device)?
+            VarBuilder::from_mmaped_safetensors(&weights_filenames, DType::F32, &device)?
         };
         let model = Phi::new(&config, vb)?;
         let logits_processor = LogitsProcessor::new(seed, temp, top_p);
@@ -82,4 +84,32 @@ impl TextGeneration {
         // TODO: implement this function, possibly in a manner that allows token streaming.
         Ok(())
     }
+}
+
+pub fn hub_load_safetensors(
+    repo: &hf_hub::api::sync::ApiRepo,
+    json_file: &str,
+) -> Result<Vec<std::path::PathBuf>, E> {
+    // https://github.com/huggingface/candle/blob/5cdd84e0f6365df832a9dbb062ad3a9a34bb65b3/candle-examples/src/lib.rs#L122
+    let json_file = repo.get(json_file).map_err(candle_core::Error::wrap)?;
+    let json_file = std::fs::File::open(json_file)?;
+    let json: serde_json::Value = serde_json::from_reader(&json_file).map_err(E::msg)?;
+
+    // Not sure why this works :think:
+    let weight_map = match json.get("weight_map") {
+        None => anyhow::bail!("no weight map in {json_file:?}"),
+        Some(serde_json::Value::Object(map)) => map,
+        Some(_) => anyhow::bail!("weight map in {json_file:?} is not a map"),
+    };
+    let mut safetensors_files = std::collections::HashSet::new();
+    for value in weight_map.values() {
+        if let Some(file) = value.as_str() {
+            safetensors_files.insert(file.to_string());
+        }
+    }
+    let safetensors_files = safetensors_files
+        .iter()
+        .map(|v| repo.get(v).map_err(E::msg))
+        .collect::<Result<Vec<_>>>()?;
+    Ok(safetensors_files)
 }
