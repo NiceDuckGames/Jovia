@@ -82,6 +82,62 @@ impl TextGeneration {
 
     pub fn run(&mut self, prompt: &str, sample_len: usize) -> Result<()> {
         // TODO: implement this function, possibly in a manner that allows token streaming.
+
+        use std::io::Write;
+        println!("starting inference loop");
+        let tokens = self.tokenizer.encode(prompt, true).map_err(E::msg)?;
+        if tokens.is_empty() {
+            anyhow::bail!("Empty prompts are not supported in the phi model.")
+        }
+        if self.verbose_prompt {
+            for (token, id) in tokens.get_tokens().iter().zip(tokens.get_ids().iter()) {
+                let token = token.replace('_', " ").replace("<0x0A>", "\n");
+                println!("{id:7} -> '{token}'");
+            }
+        }
+        let mut tokens = tokens.get_ids().to_vec();
+        let mut generated_tokens = 0usize;
+        let eos_token = match self.tokenizer.get_vocab(true).get("<|endoftext|>") {
+            Some(token) => *token,
+            None => anyhow::bail!("cannot find the endoftext token"),
+        };
+        print!("{prompt}");
+        std::io::stdout().flush()?;
+        let start_gen = std::time::Instant::now();
+        for index in 0..sample_len {
+            let context_size = if index > 0 { 1 } else { tokens.len() };
+            let ctxt = &tokens[tokens.len().saturating_sub(context_size)..];
+            let input = Tensor::new(ctxt, &self.device)?.unsqueeze(0)?;
+            let logits = self.model.forward(&input)?;
+            let logits = logits.squeeze(0)?.to_dtype(DType::F32)?;
+            let logits = if self.repeat_penalty == 1. {
+                logits
+            } else {
+                let start_at = tokens.len().saturating_sub(self.repeat_last_n);
+                candle_transformers::utils::apply_repeat_penalty(
+                    &logits,
+                    self.repeat_penalty,
+                    &tokens[start_at..],
+                )?
+            };
+
+            let next_token = self.logits_processor.sample(&logits)?;
+            tokens.push(next_token);
+            generated_tokens += 1;
+            if next_token == eos_token {
+                break;
+            }
+            let token = self.tokenizer.decode(&[next_token], true).map_err(E::msg)?;
+            print!("{token}");
+            std::io::stdout().flush()?;
+        }
+
+        let dt = start_gen.elapsed();
+        println!(
+            "\n{generated_tokens} tokens generated ({:.2} token/s)",
+            generated_tokens as f64 / dt.as_secs_f64(),
+        );
+
         Ok(())
     }
 }
