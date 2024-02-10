@@ -5,7 +5,7 @@ Welcome to Ducky AI! This is an open-source AI tool designed to assist developer
 ## Features 🚀
 
 - **Interactive Assistant**: Interact with a game development assistant using natural language commands.
-- **Godot Integration**: Execute instructions directly within the Godot game engine.
+- **Godot Integration**: Execute model inference from GDScript.
 - **Local Models**: Utilize locally hosted AI models for enhanced privacy and offline functionality.
 - **Future Hosted Option**: The project aims to offer a hosted option in the future for convenience and scalability.
 
@@ -15,7 +15,7 @@ To get started with Ducky AI, follow these steps:
 
 1. Clone the repository: `git clone https://github.com/yourusername/ducky-ai.git`
 2. Navigate to the project directory: `cd ducky-ai`
-3. Build the project using Rust: `cargo build --release`
+3. Build the project using Rust: `cargo build -p server --release`
 4. Run the tool: `./target/release/ducky-ai`
 
 ## Usage 🕹️
