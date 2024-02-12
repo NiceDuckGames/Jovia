@@ -36,7 +36,7 @@ We welcome contributions from the community to improve and expand the functional
 
 ### Contributing to the Model Dataset
 #### Command Sequence Data
-To contribute your own command sequence data to the model dataset see the [Submitting Your Own Data](https://github.com/NiceDuckGames/DuckyCommandDataset?tab=readme-ov-file#submitting-training-data) section of the DuckyCommandDataset repository.
+To contribute your own command sequence data to the model dataset see the [Submitting Your Own Data](https://github.com/NiceDuckGames/DuckyCommandDataset?tab=readme-ov-file#submitting-training-data) section of the ducky-command-dataset repository.
 
 #### GDScript Data
 If you wish to contribute GDScript source code for use in training the DuckyAI codegen model see the [ducky-ai-codegen-optins](https://github.com/NiceDuckGames/ducky-ai-codegen-optins) repository for instruction on how to do that.
@@ -58,7 +58,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## Acknowledgements 🙏
 
 - Special thanks to [Godot Engine](https://godotengine.org/) for being awesome and empowering game developers!
-- Shout out the the HuggingFace crew for making [Candle](https://github.com/huggingface/candle) which is an awesome ML framework for Rust.
+- Shout out to the HuggingFace crew for making [Candle](https://github.com/huggingface/candle) which is an awesome ML framework for Rust.
 
 ## Support 📧
 
