@@ -35,7 +35,11 @@ We welcome contributions from the community to improve and expand the functional
 - Submit a pull request.
 
 ### Contributing to the Model Dataset
+#### Command Sequence Data
 To contribute your own command sequence data to the model dataset see the [Submitting Your Own Data](https://github.com/NiceDuckGames/DuckyCommandDataset?tab=readme-ov-file#submitting-training-data) section of the DuckyCommandDataset repository.
+
+#### GDScript Data
+If you wish to contribute GDScript source code for use in training the DuckyAI codegen model see the [ducky-ai-codegen-optins](https://github.com/NiceDuckGames/ducky-ai-codegen-optins) repository for instruction on how to do that.
 
 ## Sponsorship and Support 💡
 
