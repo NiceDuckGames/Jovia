@@ -34,6 +34,9 @@ We welcome contributions from the community to improve and expand the functional
 - Push to the branch: `git push origin feature/improvement`
 - Submit a pull request.
 
+### Contributing to the Model Dataset
+To contribute your own command sequence data to the model dataset see the [Submitting Your Own Data](https://github.com/NiceDuckGames/DuckyCommandDataset?tab=readme-ov-file#submitting-training-data) section of the DuckyCommandDataset repository.
+
 ## Sponsorship and Support 💡
 
 Ducky AI is a community-driven project, and your support is greatly appreciated. You can support the development of Ducky AI through the following platforms:
