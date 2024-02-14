@@ -26,13 +26,11 @@ To get started with Ducky AI, follow these steps:
 
 ## Contributing 🤝
 
-We welcome contributions from the community to improve and expand the functionality of Ducky AI. If you'd like to contribute, please follow these guidelines:
+We are not currently accepting pull-requests on this repository from people outside of our team, though we probably will once the project reaches a certain level of stability and usefulness.
 
-- Fork the repository.
-- Create a new branch: `git checkout -b feature/improvement`
-- Make your changes and commit them: `git commit -am 'Add new feature'`
-- Push to the branch: `git push origin feature/improvement`
-- Submit a pull request.
+Instead if you would like to contribute, please open an issue for discussion first or create a [discussion](https://github.com/NiceDuckGames/duckyai/discussions).
+
+An additional way to contribute to the project is to contribute to the datasets used to create the custom models.
 
 ### Contributing to the Model Dataset
 #### Command Sequence Data
@@ -43,7 +41,7 @@ If you wish to contribute GDScript source code for use in training the DuckyAI c
 
 ## Sponsorship and Support 💡
 
-Ducky AI is a community-driven project, and your support is greatly appreciated. You can support the development of Ducky AI through the following platforms:
+Ducky AI is a passion-driven project, and your support is greatly appreciated. You can support the development of Ducky AI through the following platforms:
 
 - **GitHub Sponsorship**: Become a sponsor on GitHub to support ongoing development and maintenance of Ducky AI. [Sponsor Ducky AI](https://github.com/sponsors/NiceDuckGames)
 
