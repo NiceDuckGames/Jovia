@@ -16,10 +16,10 @@ Welcome to Ducky AI! This is an open-source AI tool designed to assist developer
 
 To get started with Ducky AI, follow these steps:
 
-1. Clone the repository: `git clone https://github.com/yourusername/ducky-ai.git`
-2. Navigate to the project directory: `cd ducky-ai`
+1. Clone the repository: `git clone https://github.com/NiceDuckGames/duckyai.git`
+2. Navigate to the project directory: `cd duckyai`
 3. Build the project using Rust: `cargo build -p server --release`
-4. Run the tool: `./target/release/ducky-ai`
+4. Run the tool: `./target/release/duckyai`
 
 ## Usage 🕹️
 
