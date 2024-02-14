@@ -2,11 +2,14 @@
 
 Welcome to Ducky AI! This is an open-source AI tool designed to assist developers working with the Godot game engine. Ducky AI, built using Rust, allows developers to interact with a game development assistant powered by AI, capable of executing instructions within the Godot engine.
 
-## Features 🚀
+## Feature Roadmap 🚀
 
-- **Interactive Assistant**: Interact with a game development assistant using natural language commands.
-- **Godot Integration**: Execute model inference from GDScript.
-- **Local Models**: Utilize locally hosted AI models for enhanced privacy and offline functionality.
+- ☑️ **Interactive Assistant**: Interact with a game development assistant using natural language commands.
+- ☑️ **Godot Integration**: Execute model inference from GDScript.
+- ☑️ **Local Models**: Utilize locally hosted AI models for enhanced privacy and offline functionality.
+- ☑️ **Text Generation**: Our first goal is to enable text generation via LLMs from the Godot game engine in an efficient manner.
+- **Image Generation**: We plan to include image generation capabilities to aid in texture generation, texture repeating, among other things directly from Godot.
+- **Mesh Generation**: Generate 3D meshes from text prompts straight from within the Godot game engine.
 - **Future Hosted Option**: The project aims to offer a hosted option in the future for convenience and scalability.
 
 ## Getting Started 🛠️
