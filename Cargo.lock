@@ -2431,6 +2431,7 @@ dependencies = [
  "actix",
  "actix-web",
  "actix-web-actors",
+ "anyhow",
  "inference",
  "qdrant-client",
  "tokio",
