@@ -1,10 +1,54 @@
+use std::collections::VecDeque;
+
 use actix::{Actor, StreamHandler};
 use actix_web::{web, App, Error, HttpRequest, HttpResponse, HttpServer};
 use actix_web_actors::ws;
 use anyhow::Error as E;
 
 // Inference stuff
-use inference::{text_generation::TextGeneration, *};
+use inference::{embedding::EmbeddingGeneration, text_generation::TextGeneration, *};
+
+enum InferenceType {
+    Text(TextGeneration),
+    Embed(EmbeddingGeneration),
+    //Image(ImageGeneration),
+    //Mesh(MeshGeneration),
+}
+
+enum InferenceMessage {
+    Text(String),
+    Embed(String),
+    Image(String),
+    Mesh(String),
+}
+
+struct Inferencer {
+    pipeline: InferenceType,
+    inference_queue: VecDeque<InferenceMessage>,
+}
+
+impl Inferencer {
+    fn enque_inference(&mut self, msg: InferenceMessage) {
+        self.inference_queue.push_back(msg)
+    }
+
+    fn process_queue(&mut self) {
+        let msg: InferenceMessage = self.inference_queue.pop_front().unwrap();
+        match msg {
+            InferenceMessage::Text(msg_str) => {
+                if let InferenceType::Text(_) = self.pipeline {
+                    // do nothing since we have the right pipeline
+                } else {
+                    // swap to the correct pipeline for TextGeneration
+                }
+                // do the infrerence
+            }
+            InferenceMessage::Embed(_) => {}
+            InferenceMessage::Mesh(_) => {}
+            InferenceMessage::Image(_) => {}
+        }
+    }
+}
 
 /// Define HTTP actor
 struct WSActor {
@@ -46,6 +90,8 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WSActor {
 }
 
 async fn index(req: HttpRequest, stream: web::Payload) -> Result<HttpResponse, Error> {
+    // We probably don't went to be creating a new text pipeline for every request that comes in
+    // We may want to create a model pool and queue inferece requests
     let actor = WSActor {
         text_pipeline: TextGeneration::new(None, None, 299792458, None, None, 1.1, 64, false)
             .unwrap(),

@@ -15,7 +15,7 @@ mod tests {
 
     #[test]
     fn instantiate_embedding_model() {
-        let em_result = EmbeddingModel::new(true, false, None, None);
+        let em_result = EmbeddingGeneration::new(true, false, None, None);
         match em_result {
             Ok(_) => {
                 assert!(true);
@@ -44,7 +44,7 @@ mod tests {
 
         let n_sentences = sentences.len();
 
-        let em = EmbeddingModel::new(true, false, None, None).unwrap();
+        let em = EmbeddingGeneration::new(true, false, None, None).unwrap();
         let embeddings = em.embed_batch(sentences);
 
         assert!(true);
@@ -57,7 +57,7 @@ mod tests {
             .map(|s| s.to_string())
             .collect();
 
-        let em = EmbeddingModel::new(true, false, None, None).unwrap();
+        let em = EmbeddingGeneration::new(true, false, None, None).unwrap();
         let embeddings = em.embed_batch(sentences).unwrap();
 
         let e1 = embeddings.get(0).unwrap();

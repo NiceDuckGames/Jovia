@@ -6,7 +6,7 @@ use hf_hub::api::sync::Api;
 use hf_hub::{Repo, RepoType};
 use tokenizers::{PaddingParams, Tokenizer};
 
-pub struct EmbeddingModel {
+pub struct EmbeddingGeneration {
     pub tracing: bool,
     pub model_id: Option<String>,
     pub revision: Option<String>,
@@ -15,7 +15,7 @@ pub struct EmbeddingModel {
     pub device: Device,
 }
 
-impl EmbeddingModel {
+impl EmbeddingGeneration {
     // Construct the model wrapper
     pub fn new(
         cpu: bool,
@@ -55,7 +55,7 @@ impl EmbeddingModel {
             unsafe { VarBuilder::from_mmaped_safetensors(&[weights_filename], DTYPE, &device)? };
         let model = BertModel::load(vb, &config)?;
 
-        Ok(EmbeddingModel {
+        Ok(EmbeddingGeneration {
             tracing,
             model_id: Some(default_model),
             revision: Some(default_revision),
