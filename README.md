@@ -25,6 +25,21 @@ To get started with Jovia, follow these steps:
 3. Use the Jovia API from GDscript to integrate local text-generation, image generation, and more into your game.
 4. See the demo project under examples/ to get started (TODO)
 
+### Building From Source
+
+- Clone this repo `git clone https://github.com/NiceDuckGames/Jovia.git`
+- Build the Godot Bindings `cargo build -p binding --release`
+- TODO: hook into godot project
+
+#### Cross-compilation
+##### Windows
+
+To cross compile for windows from Linux you will need to install a few additional things.
+
+- *Windows build target* `rustup target add x86_64-pc-windows-gnu`
+- *Mingw comilation toolchain* `sudo apt install mingw-w64`
+- *Build the bindings* `cargo build -p bindings --release --target x86_64-pc-windows-gnu`
+
 ## Contributing 🤝
 
 We are not currently accepting pull-requests on this repository from people outside of our team, though we probably will once the project reaches a certain level of stability and usefulness.
