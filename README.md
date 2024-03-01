@@ -1,6 +1,6 @@
 # ✨Jovia - Open Source AI Framework for Godot 🎮
 
-Welcome to Jovia! This is an open-source AI framework designed to allow Godot developers integrate AI into their games. Jovia, also provides a game design assistant name... Jovia of course, capable of executing instructions within the Godot engine.
+Welcome to Jovia! Jovia is an open-source AI framework designed to allow Godot developers to integrate local AI models into their games. Jovia, also provides a game design assistant named... Jovia of course, capable of executing instructions within the Godot engine.
 
 ## Feature Roadmap 🚀
 
