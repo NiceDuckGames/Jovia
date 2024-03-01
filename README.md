@@ -35,7 +35,7 @@ An additional way to contribute to the project is to contribute to the datasets 
 
 ### Contributing to the Model Dataset
 #### Command Sequence Data
-To contribute your own command sequence data to the model dataset see the [Submitting Your Own Data](https://github.com/NiceDuckGames/JoviaCommandDataset?tab=readme-ov-file#submitting-training-data) section of the ducky-command-dataset repository.
+To contribute your own command sequence data to the model dataset see the [Submitting Your Own Data](https://github.com/NiceDuckGames/jovia-command-dataset?tab=readme-ov-file#submitting-training-data) section of the ducky-command-dataset repository.
 
 #### GDScript Data
 If you wish to contribute GDScript source code for use in training the jovia codegen model see the [ducky-ai-codegen-optins](https://github.com/NiceDuckGames/jovia-codegen-optins) repository for instruction on how to do that.
