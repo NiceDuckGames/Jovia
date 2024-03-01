@@ -1,6 +1,6 @@
 # ✨Jovia - Open Source AI Framework for Godot 🎮
 
-Welcome to Jovia! This is an open-source AI tool designed to assist developers working with the Godot game engine. Jovia, built using Rust, allows developers to interact with a game development assistant powered by AI, capable of executing instructions within the Godot engine.
+Welcome to Jovia! This is an open-source AI framework designed to allow Godot developers integrate AI into their games. Jovia, also provides a game design assistant name... Jovia of course, capable of executing instructions within the Godot engine.
 
 ## Feature Roadmap 🚀
 
@@ -16,16 +16,14 @@ Welcome to Jovia! This is an open-source AI tool designed to assist developers w
 
 To get started with Jovia, follow these steps:
 
-1. Clone the repository: `git clone https://github.com/NiceDuckGames/jovia.git`
-2. Navigate to the project directory: `cd jovia`
-3. Build the project using Rust: `cargo build -p server --release`
-4. Run the tool: `./target/release/jovia`
+- [ ] TODO
 
 ## Usage 🕹️
 
-1. Launch the Jovia tool.
+1. Install the Jovia Godot addon (available soon)
 2. Interact with the assistant using natural language commands.
-3. The assistant will execute instructions within the Godot game engine.
+3. Use the Jovia API from GDscript to integrate local text-generation, image generation, and more into your game.
+4. See the demo project under examples/ to get started (TODO)
 
 ## Contributing 🤝
 
@@ -37,10 +35,10 @@ An additional way to contribute to the project is to contribute to the datasets 
 
 ### Contributing to the Model Dataset
 #### Command Sequence Data
-To contribute your own command sequence data to the model dataset see the [Submitting Your Own Data](https://github.com/NiceDuckGames/DuckyCommandDataset?tab=readme-ov-file#submitting-training-data) section of the ducky-command-dataset repository.
+To contribute your own command sequence data to the model dataset see the [Submitting Your Own Data](https://github.com/NiceDuckGames/JoviaCommandDataset?tab=readme-ov-file#submitting-training-data) section of the ducky-command-dataset repository.
 
 #### GDScript Data
-If you wish to contribute GDScript source code for use in training the jovia codegen model see the [ducky-ai-codegen-optins](https://github.com/NiceDuckGames/ducky-ai-codegen-optins) repository for instruction on how to do that.
+If you wish to contribute GDScript source code for use in training the jovia codegen model see the [ducky-ai-codegen-optins](https://github.com/NiceDuckGames/jovia-codegen-optins) repository for instruction on how to do that.
 
 ## Sponsorship and Support 💡
 
