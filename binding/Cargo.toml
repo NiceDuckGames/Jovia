@@ -11,3 +11,6 @@ crate-type = ["cdylib"]
 [dependencies]
 godot = { git = "https://github.com/godot-rust/gdext", branch = "master" }
 inference = { path = "../inference" }
+candle-core = { version = "0.3.3", workspace = true }
+candle-nn = { version = "0.3.3", workspace = true }
+candle-transformers = { version = "0.3.3", workspace = true }
