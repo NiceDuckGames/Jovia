@@ -10,6 +10,41 @@ struct GDExtTest;
 #[gdextension]
 unsafe impl ExtensionLibrary for Jovia {}
 
+// NonBlockingChannel for inference streaming
+use std::sync::mpsc::{self, TryRecvError};
+use std::sync::{Arc, Mutex};
+
+#[derive(GodotClass)]
+#[class(base=Object)]
+struct InferenceChannel {
+    base: Base<Object>,
+    receiver: Arc<Mutex<mpsc::Receiver>>,
+}
+
+#[godot_api]
+impl IObject for InferenceChannel {
+    fn init(base: Base<Object>) -> Self {
+        let (_, rx) = mpsc::channel();
+        let rx = Arc::new(Mutex::new(rx));
+        Self { base, receiver: rx }
+    }
+}
+
+#[godot_api]
+impl InferenceChannel {
+    fn poll(&self) -> Option<T> {
+        let lock = self.receiver.lock().unwrap();
+        match lock.try_recv() {
+            Ok(value) => Some(value),
+            Err(TryRecvError::Empty) => None,
+            Err(TryRecvError::Disconnected) => {
+                // Handle the disconnection appropriately, perhaps by returning None or an error
+                None
+            }
+        }
+    }
+}
+
 #[derive(GodotClass)]
 #[class(base=Node)]
 struct Jovia {
@@ -34,7 +69,9 @@ impl Jovia {
     }
 
     #[func]
-    fn text(prompt: String) -> String {
+    fn text(prompt: String) -> InferenceChannel {
+        // We can consider using rust threads +
+
         let mut pipeline =
             TextGeneration::new(None, None, 299792458, None, None, 1.1, 64, false).unwrap();
         pipeline.run(&prompt, 256).unwrap();
