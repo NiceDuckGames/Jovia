@@ -14,6 +14,13 @@ unsafe impl ExtensionLibrary for Jovia {}
 use std::sync::mpsc::{self, TryRecvError};
 use std::sync::{Arc, Mutex};
 
+// GOption is a wrapper around Rust Option
+#[derive(GodotClass)]
+#[class(base=Object)]
+struct GOption {
+
+}
+
 #[derive(GodotClass)]
 #[class(base=Object)]
 struct InferenceChannel {
@@ -32,14 +39,15 @@ impl IObject for InferenceChannel {
 
 #[godot_api]
 impl InferenceChannel {
-    fn poll(&self) -> Option<T> {
+    fn poll(&self) -> f32 {
+        // We can't hand an option over to Godot, we have to lift the value out
         let lock = self.receiver.lock().unwrap();
         match lock.try_recv() {
-            Ok(value) => Some(value),
-            Err(TryRecvError::Empty) => None,
+            Ok(value) => value,
+            Err(TryRecvError::Empty) => f64::NaN,
             Err(TryRecvError::Disconnected) => {
                 // Handle the disconnection appropriately, perhaps by returning None or an error
-                None
+                f64:NaN
             }
         }
     }
