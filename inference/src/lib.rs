@@ -5,6 +5,8 @@ pub mod text_generation;
 
 #[cfg(test)]
 mod tests {
+    use std::io::Write;
+
     use crate::text_generation::TextGeneration;
 
     use super::*;
@@ -68,10 +70,16 @@ mod tests {
     }
 
     #[test]
-    fn test_textgeneration_run() {
+    fn test_textgeneration_run() -> Result<(), anyhow::Error> {
         let prompt = "What is the capital Ireland?".to_string();
         let mut pipeline =
             TextGeneration::new(None, None, 299792458, None, None, 1.1, 64, false).unwrap();
-        pipeline.run(&prompt, 500).unwrap();
+        let rx = pipeline.run(&prompt, 256).unwrap();
+        for token in rx {
+            std::io::stdout().flush()?;
+            print!("{token}");
+            std::io::stdout().flush()?;
+        }
+        Ok(())
     }
 }

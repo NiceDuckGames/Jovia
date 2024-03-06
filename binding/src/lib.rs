@@ -1,3 +1,4 @@
+use candle_core::pickle::Object;
 use candle_core::Tensor;
 use godot::engine::INode;
 use godot::engine::Node;
@@ -9,49 +10,6 @@ struct GDExtTest;
 
 #[gdextension]
 unsafe impl ExtensionLibrary for Jovia {}
-
-// NonBlockingChannel for inference streaming
-use std::sync::mpsc::{self, TryRecvError};
-use std::sync::{Arc, Mutex};
-
-// GOption is a wrapper around Rust Option
-#[derive(GodotClass)]
-#[class(base=Object)]
-struct GOption {
-
-}
-
-#[derive(GodotClass)]
-#[class(base=Object)]
-struct InferenceChannel {
-    base: Base<Object>,
-    receiver: Arc<Mutex<mpsc::Receiver>>,
-}
-
-#[godot_api]
-impl IObject for InferenceChannel {
-    fn init(base: Base<Object>) -> Self {
-        let (_, rx) = mpsc::channel();
-        let rx = Arc::new(Mutex::new(rx));
-        Self { base, receiver: rx }
-    }
-}
-
-#[godot_api]
-impl InferenceChannel {
-    fn poll(&self) -> f32 {
-        // We can't hand an option over to Godot, we have to lift the value out
-        let lock = self.receiver.lock().unwrap();
-        match lock.try_recv() {
-            Ok(value) => value,
-            Err(TryRecvError::Empty) => f64::NaN,
-            Err(TryRecvError::Disconnected) => {
-                // Handle the disconnection appropriately, perhaps by returning None or an error
-                f64:NaN
-            }
-        }
-    }
-}
 
 #[derive(GodotClass)]
 #[class(base=Node)]
@@ -77,14 +35,14 @@ impl Jovia {
     }
 
     #[func]
-    fn text(prompt: String) -> InferenceChannel {
-        // We can consider using rust threads +
-
+    fn text(prompt: String) {
+        // This takes a string prompt and instantiates a InferenceChannel
+        // which uses threading to perform streaming token inference in a non-blocking manner.
+        // each time a new token is generated a godot signal on_token will be emitted.
+        // This will allow user to grab new tokens in a non-blocking even driven manner.
         let mut pipeline =
             TextGeneration::new(None, None, 299792458, None, None, 1.1, 64, false).unwrap();
         pipeline.run(&prompt, 256).unwrap();
-
-        "Not Implemented".to_owned()
     }
 
     #[func]
