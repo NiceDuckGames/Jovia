@@ -7,17 +7,18 @@ use candle_transformers::models::phi::{Config as PhiConfig, Model as Phi};
 use hf_hub::api::sync::Api;
 use hf_hub::{Repo, RepoType};
 use std::sync::mpsc::{self, Receiver};
+use std::sync::{Arc, Mutex};
 use std::thread;
-use std::time::Duration;
 use tokenizers::{PaddingParams, Tokenizer};
 
+#[derive(Clone)]
 pub struct TextGeneration {
-    model: Phi,
+    model: Arc<Mutex<Phi>>,
     model_id: Option<String>,
     revision: Option<String>,
     device: Device,
-    tokenizer: Tokenizer,
-    logits_processor: LogitsProcessor,
+    tokenizer: Arc<Mutex<Tokenizer>>,
+    logits_processor: Arc<Mutex<LogitsProcessor>>,
     repeat_penalty: f32,
     repeat_last_n: usize,
     verbose_prompt: bool,
@@ -62,13 +63,15 @@ impl TextGeneration {
         };
 
         let config = std::fs::read_to_string(config_filename)?;
-        let mut config: PhiConfig = serde_json::from_str(&config)?;
-        let tokenizer = Tokenizer::from_file(tokenizer_filename).map_err(E::msg)?;
+        let config: PhiConfig = serde_json::from_str(&config)?;
+        let tokenizer = Arc::new(Mutex::new(
+            Tokenizer::from_file(tokenizer_filename).map_err(E::msg)?,
+        ));
         let vb = unsafe {
             VarBuilder::from_mmaped_safetensors(&weights_filenames, DType::F32, &device)?
         };
-        let model = Phi::new(&config, vb)?;
-        let logits_processor = LogitsProcessor::new(seed, temp, top_p);
+        let model = Arc::new(Mutex::new(Phi::new(&config, vb)?));
+        let logits_processor = Arc::new(Mutex::new(LogitsProcessor::new(seed, temp, top_p)));
 
         Ok(Self {
             model,
@@ -90,7 +93,12 @@ impl TextGeneration {
     ) -> Result<Receiver<String>, anyhow::Error> {
         // TODO: implement this function, possibly in a manner that allows token streaming.
 
-        let tokens = self.tokenizer.encode(prompt, true).map_err(E::msg)?;
+        let tokens = self
+            .tokenizer
+            .lock()
+            .unwrap()
+            .encode(prompt, true)
+            .map_err(E::msg)?;
         if tokens.is_empty() {
             anyhow::bail!("Empty prompts are not supported in the phi model.")
         }
@@ -101,8 +109,13 @@ impl TextGeneration {
             }
         }
         let mut tokens = tokens.get_ids().to_vec();
-        let mut generated_tokens = 0usize;
-        let eos_token = match self.tokenizer.get_vocab(true).get("<|endoftext|>") {
+        let eos_token = match self
+            .tokenizer
+            .lock()
+            .unwrap()
+            .get_vocab(true)
+            .get("<|endoftext|>")
+        {
             Some(token) => *token,
             None => anyhow::bail!("cannot find the endoftext token"),
         };
@@ -110,31 +123,40 @@ impl TextGeneration {
         // Channel that will be used to consume tokens as they are generated
         let (tx, rx) = mpsc::channel();
 
+        // Clone the self that we need in the thread
+        // The big properties are wrapped in Arc<Mutex>> to safely clone them without copying the
+        // data
+        let cloned = self.clone();
         // spawn a producer thread
         thread::spawn(move || -> Result<()> {
             for index in 0..sample_len {
                 let context_size = if index > 0 { 1 } else { tokens.len() };
                 let ctxt = &tokens[tokens.len().saturating_sub(context_size)..];
-                let input = Tensor::new(ctxt, &self.device)?.unsqueeze(0)?;
-                let logits = self.model.forward(&input)?;
+                let input = Tensor::new(ctxt, &cloned.device)?.unsqueeze(0)?;
+                let logits = cloned.model.lock().unwrap().forward(&input)?;
                 let logits = logits.squeeze(0)?.to_dtype(DType::F32)?;
-                let logits = if self.repeat_penalty == 1. {
+                let logits = if cloned.repeat_penalty == 1. {
                     logits
                 } else {
-                    let start_at = tokens.len().saturating_sub(self.repeat_last_n);
+                    let start_at = tokens.len().saturating_sub(cloned.repeat_last_n);
                     candle_transformers::utils::apply_repeat_penalty(
                         &logits,
-                        self.repeat_penalty,
+                        cloned.repeat_penalty,
                         &tokens[start_at..],
                     )?
                 };
 
-                let next_token = self.logits_processor.sample(&logits)?;
+                let next_token = cloned.logits_processor.lock().unwrap().sample(&logits)?;
                 tokens.push(next_token);
                 if next_token == eos_token {
                     break;
                 }
-                let token = self.tokenizer.decode(&[next_token], true).map_err(E::msg)?;
+                let token = cloned
+                    .tokenizer
+                    .lock()
+                    .unwrap()
+                    .decode(&[next_token], true)
+                    .map_err(E::msg)?;
                 if tx.send(token).is_err() {
                     break; // receiver has been dropped exit the loop
                 }

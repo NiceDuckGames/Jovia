@@ -71,11 +71,13 @@ mod tests {
 
     #[test]
     fn test_textgeneration_run() -> Result<(), anyhow::Error> {
+        println!("Running TextGeneration!!!!");
         let prompt = "What is the capital Ireland?".to_string();
         let mut pipeline =
             TextGeneration::new(None, None, 299792458, None, None, 1.1, 64, false).unwrap();
         let rx = pipeline.run(&prompt, 256).unwrap();
-        for token in rx {
+        // consume the tokens
+        for token in rx.iter() {
             std::io::stdout().flush()?;
             print!("{token}");
             std::io::stdout().flush()?;

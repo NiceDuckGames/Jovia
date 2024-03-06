@@ -1,25 +1,23 @@
-use candle_core::pickle::Object;
 use candle_core::Tensor;
-use godot::engine::INode;
-use godot::engine::Node;
+use godot::engine::IObject;
+use godot::engine::Object;
 use godot::prelude::*;
 use inference::embedding::EmbeddingModel;
 use inference::text_generation::TextGeneration;
-
-struct GDExtTest;
+use std::sync::mpsc::Receiver;
 
 #[gdextension]
 unsafe impl ExtensionLibrary for Jovia {}
 
 #[derive(GodotClass)]
-#[class(base=Node)]
+#[class(base=Object)]
 struct Jovia {
-    base: Base<Node>,
+    base: Base<Object>,
 }
 
 #[godot_api]
-impl INode for Jovia {
-    fn init(base: Base<Node>) -> Self {
+impl IObject for Jovia {
+    fn init(base: Base<Object>) -> Self {
         // This function might be where we should handle loading the models?
         Self { base }
     }
@@ -27,6 +25,12 @@ impl INode for Jovia {
 
 #[godot_api]
 impl Jovia {
+    #[signal]
+    fn token(token: String);
+
+    #[signal]
+    fn finished();
+
     #[func]
     fn add(left: i32, right: i32) -> i32 {
         let sum = left + right;
@@ -35,14 +39,23 @@ impl Jovia {
     }
 
     #[func]
-    fn text(prompt: String) {
+    fn text(&mut self, prompt: String) {
         // This takes a string prompt and instantiates a InferenceChannel
         // which uses threading to perform streaming token inference in a non-blocking manner.
         // each time a new token is generated a godot signal on_token will be emitted.
         // This will allow user to grab new tokens in a non-blocking even driven manner.
         let mut pipeline =
             TextGeneration::new(None, None, 299792458, None, None, 1.1, 64, false).unwrap();
-        pipeline.run(&prompt, 256).unwrap();
+        let rx: Receiver<String> = pipeline.run(&prompt, 256).unwrap();
+
+        for token in rx.iter() {
+            self.base_mut()
+                // Push the token into Godot land via signal
+                .emit_signal("token".into(), &[token.into_godot().to_variant()]);
+        }
+
+        // Generation is done
+        self.base_mut().emit_signal("finished".to_owned(), &[]);
     }
 
     #[func]
