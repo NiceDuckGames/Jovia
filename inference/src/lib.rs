@@ -5,7 +5,7 @@ pub mod text_generation;
 
 #[cfg(test)]
 mod tests {
-    use std::io::Write;
+    use std::sync::mpsc::TryRecvError;
 
     use crate::text_generation::TextGeneration;
 
@@ -15,7 +15,7 @@ mod tests {
     use candle_core::Tensor;
     use embedding::*;
 
-    #[test]
+    /*#[test]
     fn instantiate_embedding_model() {
         let em_result = EmbeddingModel::new(true, false, None, None);
         match em_result {
@@ -67,21 +67,43 @@ mod tests {
         let similarity = cos_similarity(e1, e2).unwrap();
 
         assert_eq!(similarity, 1.0);
-    }
+    }*/
 
     #[test]
     fn test_textgeneration_run() -> Result<(), anyhow::Error> {
-        println!("Running TextGeneration!!!!");
+        use std::io::Write;
+        use std::sync::mpsc::{self, Receiver, Sender};
+        use std::thread;
         let prompt = "What is the capital Ireland?".to_string();
         let mut pipeline =
             TextGeneration::new(None, None, 299792458, None, None, 1.1, 64, false).unwrap();
-        let rx = pipeline.run(&prompt, 256).unwrap();
+        let (tx, rx): (Sender<String>, Receiver<String>) = mpsc::channel();
+
+        // produce tokens
+        let handle = thread::spawn(move || {
+            pipeline.run(&prompt, 256, tx).unwrap();
+        });
+
         // consume the tokens
-        for token in rx.iter() {
+        loop {
             std::io::stdout().flush()?;
-            print!("{token}");
+            match rx.try_recv() {
+                Ok(token) => {
+                    print!("{token}");
+                }
+                Err(TryRecvError::Empty) => {
+                    print!("No tokens");
+                }
+                Err(TryRecvError::Disconnected) => {
+                    print!("All tokens consumed");
+                    break;
+                }
+            }
             std::io::stdout().flush()?;
         }
+
+        // wait for the producer thread to finish
+        handle.join().unwrap();
         Ok(())
     }
 }

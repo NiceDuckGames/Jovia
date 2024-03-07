@@ -90,8 +90,11 @@ impl TextGeneration {
         &mut self,
         prompt: &str,
         sample_len: usize,
-    ) -> Result<Receiver<String>, anyhow::Error> {
-        // TODO: implement this function, possibly in a manner that allows token streaming.
+        tx: mpsc::Sender<String>,
+    ) -> Result<(), anyhow::Error> {
+        // This function and it's associated struct is meant to be thread safe-ish
+        // You can pass in a Sender into this function to allow it to produce tokens
+        // This works in a single-threaded or multi-threaded context.
 
         let tokens = self
             .tokenizer
@@ -120,51 +123,40 @@ impl TextGeneration {
             None => anyhow::bail!("cannot find the endoftext token"),
         };
 
-        // Channel that will be used to consume tokens as they are generated
-        let (tx, rx) = mpsc::channel();
+        for index in 0..sample_len {
+            let context_size = if index > 0 { 1 } else { tokens.len() };
+            let ctxt = &tokens[tokens.len().saturating_sub(context_size)..];
+            let input = Tensor::new(ctxt, &self.device)?.unsqueeze(0)?;
+            let logits = self.model.lock().unwrap().forward(&input)?;
+            let logits = logits.squeeze(0)?.to_dtype(DType::F32)?;
+            let logits = if self.repeat_penalty == 1. {
+                logits
+            } else {
+                let start_at = tokens.len().saturating_sub(self.repeat_last_n);
+                candle_transformers::utils::apply_repeat_penalty(
+                    &logits,
+                    self.repeat_penalty,
+                    &tokens[start_at..],
+                )?
+            };
 
-        // Clone the self that we need in the thread
-        // The big properties are wrapped in Arc<Mutex>> to safely clone them without copying the
-        // data
-        let cloned = self.clone();
-        // spawn a producer thread
-        thread::spawn(move || -> Result<()> {
-            for index in 0..sample_len {
-                let context_size = if index > 0 { 1 } else { tokens.len() };
-                let ctxt = &tokens[tokens.len().saturating_sub(context_size)..];
-                let input = Tensor::new(ctxt, &cloned.device)?.unsqueeze(0)?;
-                let logits = cloned.model.lock().unwrap().forward(&input)?;
-                let logits = logits.squeeze(0)?.to_dtype(DType::F32)?;
-                let logits = if cloned.repeat_penalty == 1. {
-                    logits
-                } else {
-                    let start_at = tokens.len().saturating_sub(cloned.repeat_last_n);
-                    candle_transformers::utils::apply_repeat_penalty(
-                        &logits,
-                        cloned.repeat_penalty,
-                        &tokens[start_at..],
-                    )?
-                };
-
-                let next_token = cloned.logits_processor.lock().unwrap().sample(&logits)?;
-                tokens.push(next_token);
-                if next_token == eos_token {
-                    break;
-                }
-                let token = cloned
-                    .tokenizer
-                    .lock()
-                    .unwrap()
-                    .decode(&[next_token], true)
-                    .map_err(E::msg)?;
-                if tx.send(token).is_err() {
-                    break; // receiver has been dropped exit the loop
-                }
+            let next_token = self.logits_processor.lock().unwrap().sample(&logits)?;
+            tokens.push(next_token);
+            if next_token == eos_token {
+                break;
             }
-            Ok(())
-        });
+            let token = self
+                .tokenizer
+                .lock()
+                .unwrap()
+                .decode(&[next_token], true)
+                .map_err(E::msg)?;
+            if tx.send(token).is_err() {
+                break; // receiver has been dropped exit the loop
+            }
+        }
 
-        Ok(rx) // return the receiving end of the channel to consume tokens
+        Ok(())
     }
 }
 

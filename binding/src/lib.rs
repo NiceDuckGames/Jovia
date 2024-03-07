@@ -1,23 +1,29 @@
 use candle_core::Tensor;
 use godot::engine::IObject;
 use godot::engine::Object;
+use godot::obj::WithBaseField;
 use godot::prelude::*;
 use inference::embedding::EmbeddingModel;
 use inference::text_generation::TextGeneration;
+use std::sync::mpsc;
 use std::sync::mpsc::Receiver;
+use std::sync::mpsc::TryRecvError;
+use std::thread;
+use std::time::Duration;
 
 #[gdextension]
 unsafe impl ExtensionLibrary for Jovia {}
 
 #[derive(GodotClass)]
 #[class(base=Object)]
-struct Jovia {
+pub struct Jovia {
     base: Base<Object>,
 }
 
 #[godot_api]
 impl IObject for Jovia {
     fn init(base: Base<Object>) -> Self {
+        godot_print!("Jovia init called");
         // This function might be where we should handle loading the models?
         Self { base }
     }
@@ -26,10 +32,10 @@ impl IObject for Jovia {
 #[godot_api]
 impl Jovia {
     #[signal]
-    fn token(token: String);
+    pub fn token(token: GString);
 
     #[signal]
-    fn finished();
+    pub fn finished();
 
     #[func]
     fn add(left: i32, right: i32) -> i32 {
@@ -39,23 +45,44 @@ impl Jovia {
     }
 
     #[func]
-    fn text(&mut self, prompt: String) {
+    pub fn text(&mut self, prompt: String) {
         // This takes a string prompt and instantiates a InferenceChannel
         // which uses threading to perform streaming token inference in a non-blocking manner.
         // each time a new token is generated a godot signal on_token will be emitted.
         // This will allow user to grab new tokens in a non-blocking even driven manner.
+
         let mut pipeline =
             TextGeneration::new(None, None, 299792458, None, None, 1.1, 64, false).unwrap();
-        let rx: Receiver<String> = pipeline.run(&prompt, 256).unwrap();
+        let (tx, rx) = mpsc::channel::<String>();
 
-        for token in rx.iter() {
-            self.base_mut()
-                // Push the token into Godot land via signal
-                .emit_signal("token".into(), &[token.into_godot().to_variant()]);
+        // Kick off text generation in a seaparate thread
+        let handle: thread::JoinHandle<()> = thread::spawn(move || {
+            pipeline.run(&prompt, 256, tx).unwrap();
+        });
+
+        // this will block, we will eventually want to make it non-blocking
+        loop {
+            match rx.try_recv() {
+                Ok(token) => {
+                    godot_print!("Token {}", token);
+                    self.base_mut()
+                        .emit_signal("token".into(), &[token.to_string().to_variant()]);
+                }
+                Err(TryRecvError::Empty) => {
+                    //godot_print!("No tokens available");
+                }
+                Err(TryRecvError::Disconnected) => {
+                    //godot_print!("All tokens consumed");
+                    self.base_mut().emit_signal("finished".into(), &[]);
+                    break;
+                }
+            }
+            thread::sleep(Duration::from_millis(100));
         }
 
-        // Generation is done
-        self.base_mut().emit_signal("finished".to_owned(), &[]);
+        // Wait for the generation thread to finish
+        // Should consider bubbling the join handle up to the binding code
+        handle.join().unwrap();
     }
 
     #[func]

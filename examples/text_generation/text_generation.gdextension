@@ -5,7 +5,7 @@ reloadable = true
 
 [libraries]
 linux.debug.x86_64 =     "res://../../target/debug/libbinding.so"
-linux.release.x86_64 =   "res://../target/release/libbinding.so"
+linux.release.x86_64 =   "res://../../target/release/libbinding.so"
 windows.debug.x86_64 =   "res://bin/debug/binding.dll"
 windows.release.x86_64 = "res://bin/release/binding.dll"
 macos.debug =            "res://../target/debug/libbinding.dylib"
