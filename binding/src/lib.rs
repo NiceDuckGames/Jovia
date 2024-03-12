@@ -5,14 +5,108 @@ use godot::obj::WithBaseField;
 use godot::prelude::*;
 use inference::embedding::EmbeddingModel;
 use inference::text_generation::TextGeneration;
+use std::rc::Rc;
 use std::sync::mpsc;
 use std::sync::mpsc::Receiver;
 use std::sync::mpsc::TryRecvError;
+use std::sync::Arc;
+use std::sync::Mutex;
 use std::thread;
 use std::time::Duration;
 
 #[gdextension]
 unsafe impl ExtensionLibrary for Jovia {}
+
+#[derive(GodotClass)]
+#[class(base=Object)]
+pub struct TextGenerator {
+    base: Base<Object>,
+    pipeline: Rc<Option<TextGeneration>>,
+}
+
+#[godot_api]
+impl IObject for TextGenerator {
+    fn init(base: Base<Object>) -> Self {
+        Self {
+            base,
+            pipeline: Rc::new(None),
+        }
+    }
+}
+
+#[godot_api]
+impl TextGenerator {
+    #[signal]
+    pub fn loaded(pipeline: Gd<TextReceiver>);
+
+    #[func]
+    pub fn load_model(&mut self) {
+        let pipeline =
+            TextGeneration::new(None, None, 299792458, None, None, 1.1, 64, false).unwrap();
+        self.pipeline = Rc::new(Some(pipeline));
+        self.base_mut().emit_signal("model_loaded".into(), &[]);
+    }
+
+    #[func]
+    pub fn prompt(&mut self, prompt: String) -> Gd<TextReceiver> {
+        // This takes a string promp= t and instantiates a InferenceChannel
+        // which uses threading to perform streaming token inference in a non-blocking manner.
+        // each time a new token is generated a godot signal on_token will be emitted.
+        // This will allow user to grab new tokens in a non-blocking even driven manner.
+
+        let (tx, rx) = mpsc::channel::<String>();
+        let text_receiver = Gd::from_init_fn(move |base| TextReceiver { base, rx: Some(rx) });
+
+        let mut pipeline_ref = self.pipeline.as_ref().clone().unwrap();
+        let _ = pipeline_ref.run(&prompt, 255, tx);
+
+        // This is the object that is used in GDScript to receive tokens
+        // from the generator.
+        text_receiver
+    }
+}
+
+#[derive(GodotClass)]
+#[class(base=Object)]
+pub struct TextReceiver {
+    base: Base<Object>,
+    rx: Option<Receiver<String>>,
+}
+
+#[godot_api]
+impl IObject for TextReceiver {
+    fn init(base: Base<Object>) -> Self {
+        Self { base, rx: None }
+    }
+}
+
+#[godot_api]
+impl TextReceiver {
+    #[signal]
+    pub fn token(token: GString);
+
+    #[signal]
+    pub fn finished();
+
+    #[func]
+    pub fn poll(&mut self) {
+        // Receive doesn't return a token itself as that would block threaded use.
+        // Instead it returns a token via a Godot signal named "token".
+        let rx = self.rx.as_ref().unwrap();
+        match rx.try_recv() {
+            Ok(token) => {
+                self.base_mut()
+                    .emit_signal("token".into(), &[token.to_variant()]);
+            }
+            Err(TryRecvError::Empty) => {
+                godot_print!("No token");
+            }
+            Err(TryRecvError::Disconnected) => {
+                godot_print!("Disconnected");
+            }
+        };
+    }
+}
 
 #[derive(GodotClass)]
 #[class(base=Object)]
@@ -24,67 +118,12 @@ pub struct Jovia {
 impl IObject for Jovia {
     fn init(base: Base<Object>) -> Self {
         godot_print!("Jovia init called");
-        // This function might be where we should handle loading the models?
         Self { base }
     }
 }
 
 #[godot_api]
 impl Jovia {
-    #[signal]
-    pub fn token(token: GString);
-
-    #[signal]
-    pub fn finished();
-
-    #[func]
-    fn add(left: i32, right: i32) -> i32 {
-        let sum = left + right;
-        godot_print!("Hello from Rust! {} + {} = {}", left, right, left + right);
-        sum
-    }
-
-    #[func]
-    pub fn text(&mut self, prompt: String) {
-        // This takes a string prompt and instantiates a InferenceChannel
-        // which uses threading to perform streaming token inference in a non-blocking manner.
-        // each time a new token is generated a godot signal on_token will be emitted.
-        // This will allow user to grab new tokens in a non-blocking even driven manner.
-
-        let mut pipeline =
-            TextGeneration::new(None, None, 299792458, None, None, 1.1, 64, false).unwrap();
-        let (tx, rx) = mpsc::channel::<String>();
-
-        // Kick off text generation in a seaparate thread
-        let handle: thread::JoinHandle<()> = thread::spawn(move || {
-            pipeline.run(&prompt, 256, tx).unwrap();
-        });
-
-        // this will block, we will eventually want to make it non-blocking
-        loop {
-            match rx.try_recv() {
-                Ok(token) => {
-                    godot_print!("Token {}", token);
-                    self.base_mut()
-                        .emit_signal("token".into(), &[token.to_string().to_variant()]);
-                }
-                Err(TryRecvError::Empty) => {
-                    //godot_print!("No tokens available");
-                }
-                Err(TryRecvError::Disconnected) => {
-                    //godot_print!("All tokens consumed");
-                    self.base_mut().emit_signal("finished".into(), &[]);
-                    break;
-                }
-            }
-            thread::sleep(Duration::from_millis(100));
-        }
-
-        // Wait for the generation thread to finish
-        // Should consider bubbling the join handle up to the binding code
-        handle.join().unwrap();
-    }
-
     #[func]
     fn embed(sentences: Array<GString>) -> Array<Array<Array<f32>>> {
         let sentences: Vec<String> = sentences.iter_shared().map(|s| s.to_string()).collect();

@@ -74,11 +74,24 @@ mod tests {
         use std::io::Write;
         use std::sync::mpsc::{self, Receiver, Sender};
         use std::thread;
+        use std::time::Instant;
+
         let prompt = "What is the capital Ireland?".to_string();
+
+        println!("Loading model");
+        let now = Instant::now();
         let mut pipeline =
             TextGeneration::new(None, None, 299792458, None, None, 1.1, 64, false).unwrap();
+        let elapsed = now.elapsed();
+        println!("Took {:.2?} to load model", elapsed);
+        let _ = now;
+        let _ = elapsed;
+
+        println!("Text pipeline created, beginning inference");
+
         let (tx, rx): (Sender<String>, Receiver<String>) = mpsc::channel();
 
+        let now = Instant::now();
         // produce tokens
         let handle = thread::spawn(move || {
             pipeline.run(&prompt, 256, tx).unwrap();
@@ -86,14 +99,11 @@ mod tests {
 
         // consume the tokens
         loop {
-            std::io::stdout().flush()?;
             match rx.try_recv() {
                 Ok(token) => {
                     print!("{token}");
                 }
-                Err(TryRecvError::Empty) => {
-                    print!("No tokens");
-                }
+                Err(TryRecvError::Empty) => {}
                 Err(TryRecvError::Disconnected) => {
                     print!("All tokens consumed");
                     break;
@@ -104,6 +114,9 @@ mod tests {
 
         // wait for the producer thread to finish
         handle.join().unwrap();
+        let elapsed = now.elapsed();
+
+        println!("Took {:.2?} to complete inference", elapsed);
         Ok(())
     }
 }
