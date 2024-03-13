@@ -4,26 +4,22 @@ Welcome to Jovia! Jovia is an open-source AI framework designed to allow Godot d
 
 ## Feature Roadmap 🚀
 
-- ☑️ **Interactive Assistant**: Interact with a game development assistant using natural language commands.
 - ☑️ **Godot Integration**: Execute model inference from GDScript.
-- ☑️ **Local Models**: Utilize locally hosted AI models for enhanced privacy and offline functionality.
+- ☑️ **Local Models**: Utilize locally AI models for enhanced privacy and offline functionality.
 - ☑️ **Text Generation**: Our first goal is to enable text generation via LLMs from the Godot game engine in an efficient manner.
-- **Image Generation**: We plan to include image generation capabilities to aid in texture generation, texture repeating, among other things directly from Godot.
-- **Mesh Generation**: Generate 3D meshes from text prompts straight from within the Godot game engine.
-- **Future Hosted Option**: The project aims to offer a hosted option in the future for convenience and scalability.
+- 🚧 **WIP: Interactive Assistant**: Interact with a game development assistant using natural language commands using our Jovia model.
+- 🚧 **WIP: Image Generation**: We plan to include image generation capabilities to aid in texture generation, texture repeating, among other things directly from Godot.
+- 🤔 **TODO: Mesh Generation**: Generate 3D meshes from text prompts straight from within the Godot game engine.
+- 🤔 **TODO: Future Hosted Option**: The project aims to offer a hosted option in the future for convenience and scalability.
 
 ## Getting Started 🛠️
-
-To get started with Jovia, follow these steps:
-
-- [ ] TODO
 
 ## Usage 🕹️
 
 1. Install the Jovia Godot addon (available soon)
 2. Interact with the assistant using natural language commands.
 3. Use the Jovia API from GDscript to integrate local text-generation, image generation, and more into your game.
-4. See the demo project under examples/ to get started (TODO)
+4. See the demo project under examples/ to get started
 
 ### Building From Source
 
