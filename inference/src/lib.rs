@@ -80,8 +80,17 @@ mod tests {
 
         println!("Loading model");
         let now = Instant::now();
-        let mut pipeline =
-            TextGeneration::new(None, None, 299792458, None, None, 1.1, 64, false).unwrap();
+        let mut pipeline = TextGeneration::new(
+            "karpathy/tinyllamas".to_string(),
+            "stories15M.bin".to_string(),
+            None,
+            None,
+        )
+        .unwrap();
+        /*let mut pipeline = match pipeline {
+            Ok(p) => p,
+            Err(err) => anyhow::bail!("Error: {:?}", err),
+        };*/
         let elapsed = now.elapsed();
         println!("Took {:.2?} to load model", elapsed);
         let _ = now;
@@ -94,7 +103,7 @@ mod tests {
         let now = Instant::now();
         // produce tokens
         let handle = thread::spawn(move || {
-            pipeline.run(&prompt, 256, tx).unwrap();
+            pipeline.run(&prompt, 256, 64, 1.1, tx).unwrap();
         });
 
         // consume the tokens

@@ -4,11 +4,11 @@ compatibility_minimum = 4.1
 reloadable = true
 
 [libraries]
-linux.debug.x86_64 =     "res://../../target/debug/libbinding.so"
-linux.release.x86_64 =   "res://../../target/release/libbinding.so"
-windows.debug.x86_64 =   "res://bin/debug/binding.dll"
-windows.release.x86_64 = "res://bin/release/binding.dll"
-macos.debug =            "res://../target/debug/libbinding.dylib"
-macos.release =          "res://../target/release/libbinding.dylib"
-macos.debug.arm64 =      "res://../target/debug/libbinding.dylib"
-macos.release.arm64 =    "res://../target/release/libbinding.dylib"
+linux.debug.x86_64 =     "res://libbinding.so"
+linux.release.x86_64 =   "res://libbinding.so"
+windows.debug.x86_64 =   "res://binding.dll"
+windows.release.x86_64 = "res://binding.dll"
+macos.debug =            "res://libbinding.dylib"
+macos.release =          "res://libbinding.dylib"
+macos.debug.arm64 =      "res://libbinding.dylib"
+macos.release.arm64 =    "res://libbinding.dylib"

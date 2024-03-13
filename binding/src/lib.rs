@@ -37,14 +37,20 @@ impl IObject for TextGenerator {
 #[godot_api]
 impl TextGenerator {
     #[signal]
-    pub fn loaded(pipeline: Gd<TextReceiver>);
+    pub fn loaded();
 
     #[func]
     pub fn load_model(&mut self) {
-        let pipeline =
-            TextGeneration::new(None, None, 299792458, None, None, 1.1, 64, false).unwrap();
+        godot_print!("Trying to load model");
+        let pipeline = TextGeneration::new(
+            "karpathy/tinyllamas".to_string(),
+            "stories15m.bin".to_string(),
+            None,
+            None,
+        )
+        .unwrap();
         self.pipeline = Rc::new(Some(pipeline));
-        self.base_mut().emit_signal("model_loaded".into(), &[]);
+        self.base_mut().emit_signal("loaded".into(), &[]);
     }
 
     #[func]
@@ -58,7 +64,7 @@ impl TextGenerator {
         let text_receiver = Gd::from_init_fn(move |base| TextReceiver { base, rx: Some(rx) });
 
         let mut pipeline_ref = self.pipeline.as_ref().clone().unwrap();
-        let _ = pipeline_ref.run(&prompt, 255, tx);
+        let _ = pipeline_ref.run(&prompt, 256, 64, 1.1, tx).unwrap();
 
         // This is the object that is used in GDScript to receive tokens
         // from the generator.
@@ -83,10 +89,13 @@ impl IObject for TextReceiver {
 #[godot_api]
 impl TextReceiver {
     #[signal]
-    pub fn token(token: GString);
+    pub fn token(token: String);
 
     #[signal]
     pub fn finished();
+
+    #[signal]
+    pub fn disconnected();
 
     #[func]
     pub fn poll(&mut self) {
@@ -95,36 +104,23 @@ impl TextReceiver {
         let rx = self.rx.as_ref().unwrap();
         match rx.try_recv() {
             Ok(token) => {
+                println!("{token:?}");
                 self.base_mut()
-                    .emit_signal("token".into(), &[token.to_variant()]);
+                    .emit_signal("token".into(), &[token.into_godot().to_variant()]);
             }
             Err(TryRecvError::Empty) => {
-                godot_print!("No token");
+                self.base_mut().emit_signal("finished".into(), &[]);
             }
             Err(TryRecvError::Disconnected) => {
-                godot_print!("Disconnected");
+                self.base_mut().emit_signal("disconnected".into(), &[]);
             }
         };
     }
 }
 
-#[derive(GodotClass)]
-#[class(base=Object)]
-pub struct Jovia {
-    base: Base<Object>,
-}
+pub struct Jovia {}
 
-#[godot_api]
-impl IObject for Jovia {
-    fn init(base: Base<Object>) -> Self {
-        godot_print!("Jovia init called");
-        Self { base }
-    }
-}
-
-#[godot_api]
 impl Jovia {
-    #[func]
     fn embed(sentences: Array<GString>) -> Array<Array<Array<f32>>> {
         let sentences: Vec<String> = sentences.iter_shared().map(|s| s.to_string()).collect();
 
@@ -155,7 +151,6 @@ impl Jovia {
         outer_arr
     }
 
-    #[func]
     fn similarity(sentence1: String, sentence2: String) -> f64 {
         1.0
     }
