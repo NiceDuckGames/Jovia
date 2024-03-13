@@ -1,4 +1,7 @@
 /target
 /tools
 /.vscode
-websocat
+**/*.dll
+**/*.so
+**/bin
+**/*.TMP

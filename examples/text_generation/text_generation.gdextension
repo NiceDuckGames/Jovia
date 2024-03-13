@@ -1,0 +1,14 @@
+[configuration]
+entry_symbol = "gdext_rust_init"
+compatibility_minimum = 4.1
+reloadable = true
+
+[libraries]
+linux.debug.x86_64 =     "res://libbinding.so"
+linux.release.x86_64 =   "res://libbinding.so"
+windows.debug.x86_64 =   "res://binding.dll"
+windows.release.x86_64 = "res://binding.dll"
+macos.debug =            "res://libbinding.dylib"
+macos.release =          "res://libbinding.dylib"
+macos.debug.arm64 =      "res://libbinding.dylib"
+macos.release.arm64 =    "res://libbinding.dylib"

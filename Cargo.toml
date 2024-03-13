@@ -1,4 +1,10 @@
 [workspace]
 resolver = "2"
 
-members = [ "inference","server",]
+members = [ "binding", "inference","server",]
+
+[workspace.dependencies]
+candle-core = { git = "https://github.com/huggingface/candle.git" }
+candle-nn = { git = "https://github.com/huggingface/candle.git" }
+candle-transformers = { git = "https://github.com/huggingface/candle.git" }
+

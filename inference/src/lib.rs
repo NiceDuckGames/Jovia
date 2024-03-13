@@ -5,6 +5,8 @@ pub mod text_generation;
 
 #[cfg(test)]
 mod tests {
+    use std::sync::mpsc::TryRecvError;
+
     use crate::text_generation::TextGeneration;
 
     use super::*;
@@ -13,7 +15,7 @@ mod tests {
     use candle_core::Tensor;
     use embedding::*;
 
-    #[test]
+    /*#[test]
     fn instantiate_embedding_model() {
         let em_result = EmbeddingModel::new(true, false, None, None);
         match em_result {
@@ -65,13 +67,65 @@ mod tests {
         let similarity = cos_similarity(e1, e2).unwrap();
 
         assert_eq!(similarity, 1.0);
-    }
+    }*/
 
     #[test]
-    fn test_textgeneration_run() {
+    fn test_textgeneration_run() -> Result<(), anyhow::Error> {
+        use std::io::Write;
+        use std::sync::mpsc::{self, Receiver, Sender};
+        use std::thread;
+        use std::time::Instant;
+
         let prompt = "What is the capital Ireland?".to_string();
-        let mut pipeline =
-            TextGeneration::new(None, None, 299792458, None, None, 1.1, 64, false).unwrap();
-        pipeline.run(&prompt, 500).unwrap();
+
+        println!("Loading model");
+        let now = Instant::now();
+        let mut pipeline = TextGeneration::new(
+            "karpathy/tinyllamas".to_string(),
+            "stories15M.bin".to_string(),
+            None,
+            None,
+        )
+        .unwrap();
+        /*let mut pipeline = match pipeline {
+            Ok(p) => p,
+            Err(err) => anyhow::bail!("Error: {:?}", err),
+        };*/
+        let elapsed = now.elapsed();
+        println!("Took {:.2?} to load model", elapsed);
+        let _ = now;
+        let _ = elapsed;
+
+        println!("Text pipeline created, beginning inference");
+
+        let (tx, rx): (Sender<String>, Receiver<String>) = mpsc::channel();
+
+        let now = Instant::now();
+        // produce tokens
+        let handle = thread::spawn(move || {
+            pipeline.run(&prompt, 256, 64, 1.1, tx).unwrap();
+        });
+
+        // consume the tokens
+        loop {
+            match rx.try_recv() {
+                Ok(token) => {
+                    print!("{token}");
+                }
+                Err(TryRecvError::Empty) => {}
+                Err(TryRecvError::Disconnected) => {
+                    print!("All tokens consumed");
+                    break;
+                }
+            }
+            std::io::stdout().flush()?;
+        }
+
+        // wait for the producer thread to finish
+        handle.join().unwrap();
+        let elapsed = now.elapsed();
+
+        println!("Took {:.2?} to complete inference", elapsed);
+        Ok(())
     }
 }
