@@ -22,6 +22,8 @@ unsafe impl ExtensionLibrary for Jovia {}
 pub struct TextGenerator {
     base: Base<Object>,
     pipeline: Rc<Option<TextGeneration>>,
+    tokens: Vec<String>,
+    rx: Option<Receiver<String>>,
 }
 
 #[godot_api]
@@ -30,6 +32,8 @@ impl IObject for TextGenerator {
         Self {
             base,
             pipeline: Rc::new(None),
+            rx: None,
+            tokens: Vec::new(),
         }
     }
 }
@@ -39,55 +43,6 @@ impl TextGenerator {
     #[signal]
     pub fn loaded();
 
-    #[func]
-    pub fn load_model(&mut self) {
-        godot_print!("Trying to load model");
-        let pipeline = TextGeneration::new(
-            "karpathy/tinyllamas".to_string(),
-            "stories15m.bin".to_string(),
-            None,
-            None,
-        )
-        .unwrap();
-        self.pipeline = Rc::new(Some(pipeline));
-        self.base_mut().emit_signal("loaded".into(), &[]);
-    }
-
-    #[func]
-    pub fn prompt(&mut self, prompt: String) -> Gd<TextReceiver> {
-        // This takes a string promp= t and instantiates a InferenceChannel
-        // which uses threading to perform streaming token inference in a non-blocking manner.
-        // each time a new token is generated a godot signal on_token will be emitted.
-        // This will allow user to grab new tokens in a non-blocking even driven manner.
-
-        let (tx, rx) = mpsc::channel::<String>();
-        let text_receiver = Gd::from_init_fn(move |base| TextReceiver { base, rx: Some(rx) });
-
-        let mut pipeline_ref = self.pipeline.as_ref().clone().unwrap();
-        let _ = pipeline_ref.run(&prompt, 256, 64, 1.1, tx).unwrap();
-
-        // This is the object that is used in GDScript to receive tokens
-        // from the generator.
-        text_receiver
-    }
-}
-
-#[derive(GodotClass)]
-#[class(base=Object)]
-pub struct TextReceiver {
-    base: Base<Object>,
-    rx: Option<Receiver<String>>,
-}
-
-#[godot_api]
-impl IObject for TextReceiver {
-    fn init(base: Base<Object>) -> Self {
-        Self { base, rx: None }
-    }
-}
-
-#[godot_api]
-impl TextReceiver {
     #[signal]
     pub fn token(token: String);
 
@@ -98,23 +53,91 @@ impl TextReceiver {
     pub fn disconnected();
 
     #[func]
-    pub fn poll(&mut self) {
-        // Receive doesn't return a token itself as that would block threaded use.
-        // Instead it returns a token via a Godot signal named "token".
+    pub fn load_model(&mut self, model_id: String, which_model: String, tokenizer_id: String) {
+        let pipeline =
+            TextGeneration::new(model_id, which_model, tokenizer_id, None, None).unwrap();
+        self.pipeline = Rc::new(Some(pipeline));
+        self.base_mut().emit_signal("loaded".into(), &[]);
+    }
+
+    #[func]
+    pub fn prompt(
+        &mut self,
+        prompt: String,
+        sample_len: i32,
+        repeat_penalty: f32,
+        repeat_last_n: u64,
+    ) {
+        // This function will
+
+        // DEPRECATED - needed for poll()
+        // TODO: remove these and poll()
+        let (tx, rx) = mpsc::channel::<String>();
+        self.rx = Some(rx);
+        // DEPRECATED
+
+        let mut pipeline_ref = self.pipeline.as_ref().clone().unwrap();
+        //let _ = pipeline_ref.run(&prompt, 256, 64, 1.1, tx).unwrap();
+
+        for _i in 0..sample_len {
+            let token = pipeline_ref
+                .next_token(prompt.clone(), repeat_penalty, repeat_last_n as usize)
+                .unwrap();
+            // emit the token signal
+            // this does not consume the token from the internal vector
+            self.base_mut()
+                .emit_signal("token".into(), &[token.clone().to_variant()]);
+            self.tokens.push(token.clone());
+            let _ = tx.send(token);
+        }
+    }
+
+    #[func]
+    pub fn next_token() -> String {
+        // This will try to grab the next token from the tokens vector
+        // if there are no tokens then the function will return an empty string ""
+        // This will consume the token in the process
+        todo!("implement")
+    }
+
+    #[func]
+    pub fn consume_tokens(&mut self) -> godot::builtin::Array<GString> {
+        let mut tokens_iter = self.tokens.clone();
+        let tokens_drain = tokens_iter
+            .drain(..)
+            .into_iter()
+            .map(|t: String| t.to_godot());
+        let tokens_array: godot::builtin::Array<GString> =
+            Array::from_iter(tokens_drain.into_iter());
+
+        tokens_array
+    }
+
+    #[deprecated]
+    #[func]
+    pub fn poll(&mut self) -> String {
+        // TODO: remove
+        // Allows for continuous polling
         let rx = self.rx.as_ref().unwrap();
-        match rx.try_recv() {
+        let token = match rx.try_recv() {
             Ok(token) => {
                 println!("{token:?}");
+                // consume the token
                 self.base_mut()
-                    .emit_signal("token".into(), &[token.into_godot().to_variant()]);
+                    .emit_signal("token".into(), &[token.clone().into_godot().to_variant()]);
+                token
             }
             Err(TryRecvError::Empty) => {
                 self.base_mut().emit_signal("finished".into(), &[]);
+                "".to_string()
             }
             Err(TryRecvError::Disconnected) => {
                 self.base_mut().emit_signal("disconnected".into(), &[]);
+                "".to_string()
             }
         };
+
+        token
     }
 }
 

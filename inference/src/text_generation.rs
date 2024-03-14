@@ -9,7 +9,7 @@ use candle_transformers::models::quantized_llama2_c as qmodel;
 use hf_hub::{Repo, RepoType};
 use model::{Cache, Config, Llama};
 use qmodel::QLlama;
-use std::sync::mpsc::{self, Receiver};
+use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::{Arc, Mutex};
 use tokenizers::Tokenizer;
 use weights::TransformerWeights;
@@ -35,6 +35,7 @@ pub struct TextGeneration {
     device: Device,
     tokenizer: Arc<Mutex<Tokenizer>>,
     logits_processor: Arc<Mutex<LogitsProcessor>>,
+    tokens: Vec<String>,
     cache: Cache,
     config: Config,
 }
@@ -43,13 +44,12 @@ impl TextGeneration {
     pub fn new(
         model_id: String,
         which_model: String,
+        tokenizer_id: String,
         temp: Option<f64>,
         top_p: Option<f64>,
     ) -> Result<Self, E> {
         let device = Device::Cpu;
 
-        // Get the tokenizer instantiated
-        let tokenizer_id = "hf-internal-testing/llama-tokenizer".to_string();
         let api = hf_hub::api::sync::Api::new()?;
         let api = api.model(tokenizer_id.clone());
         let tokenizer_path = api.get("tokenizer.json")?;
@@ -68,7 +68,7 @@ impl TextGeneration {
         let is_gguf = config_path.extension().map_or(false, |v| v == "gguf");
         println!("Model is gguf: {:?}", is_gguf);
 
-        let (model, config, mut cache) = if is_gguf {
+        let (model, config, cache) = if is_gguf {
             // Only support gguf for now
             let vb = qmodel::VarBuilder::from_gguf(config_path, &device)?;
             let (_vocab_size, dim) = vb
@@ -127,10 +127,60 @@ impl TextGeneration {
             model_id,
             device,
             tokenizer,
+            tokens: Vec::new(),
             logits_processor: Arc::new(Mutex::new(logits_processor)),
             cache,
             config,
         })
+    }
+
+    pub fn next_token(
+        &mut self,
+        prompt: String,
+        repeat_penalty: f32,
+        repeat_last_n: usize,
+    ) -> Result<String, anyhow::Error> {
+        // Each time this is called the previous set of tokens need to be passed in
+        // this will allow it to generate the next token in the sequence.
+
+        let index_pos = self.tokens.len();
+        let tokenizer = self.tokenizer.clone();
+        let tokenizer = tokenizer.lock().unwrap();
+        let mut tokens = tokenizer
+            .encode(prompt, true)
+            .map_err(E::msg)?
+            .get_ids()
+            .to_vec();
+        let mut tokenizer = TokenOutputStream::new(tokenizer.to_owned());
+        let model = self.model.clone();
+        let model = model.lock().unwrap();
+
+        let context_size = tokens.len();
+        let ctxt = &tokens[tokens.len().saturating_sub(context_size)..];
+        let input = Tensor::new(ctxt, &self.device)?.unsqueeze(0)?;
+        let logits = model.forward(&input, index_pos, &mut self.cache)?;
+        let logits = logits.i((0, logits.dim(1)? - 1))?;
+        let logits = if repeat_penalty == 1. || tokens.is_empty() {
+            logits
+        } else {
+            let start_at = tokens.len().saturating_sub(repeat_last_n);
+            candle_transformers::utils::apply_repeat_penalty(
+                &logits,
+                repeat_penalty,
+                &tokens[start_at..],
+            )?
+        };
+
+        let next_token = self
+            .logits_processor
+            .clone()
+            .lock()
+            .unwrap()
+            .sample(&logits)?;
+        tokens.push(next_token);
+        let next_token = tokenizer.next_token(next_token)?;
+
+        Ok(next_token.unwrap())
     }
 
     pub fn run(

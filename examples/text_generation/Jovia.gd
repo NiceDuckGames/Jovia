@@ -10,13 +10,17 @@ var prompted = false
 var thread: Thread
 var loader_thread: Thread
 
+var model_id = "karpathy/tinyllamas"
+var which_model = "stories15m.bin"
+var tokenizer_id = "hf-internal-testing/llama-tokenizer"
+
 # Called when the node enters the scene tree for the first time.
 func _ready() -> void:
 	thread = Thread.new()
 	gen = TextGenerator.new()
 	gen.loaded.connect(_on_model_loaded)
 	loader_thread = Thread.new()
-	loader_thread.start(gen.load_model.bind())
+	loader_thread.start(gen.load_model.bind(model_id, which_model, tokenizer_id))
 	
 func _on_model_loaded() -> void:
 	print_debug("Model loaded")
@@ -36,6 +40,7 @@ func _on_finished() -> void:
 func _on_disconnected() -> void:
 	print_debug("Receiver disconnected!")
 	get_tree().quit()
+
 # Called every frame. 'delta' is the elapsed time since the previous frame.
 func _process(delta: float) -> void:
 	if loaded:
