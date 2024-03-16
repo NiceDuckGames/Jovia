@@ -71,10 +71,9 @@ mod tests {
 
     #[test]
     fn test_textgeneration_run() -> Result<(), anyhow::Error> {
-        use std::io::Write;
         use std::time::Instant;
 
-        let prompt = "What is the capital Ireland?".to_string();
+        let mut prompt = "Once upon a time ".to_string();
         let repeat_penalty = 1.1;
         let repeat_last_n = 64;
         let sample_len = 255;
@@ -96,43 +95,27 @@ mod tests {
         let _ = now;
         let _ = elapsed;
 
-        // Seed the generation with the passed in prompt
-        let (token, index_pos) = pipeline
-            .next_token(prompt, repeat_penalty, repeat_last_n as usize, 0)
-            .unwrap();
-        tokens.push(token.unwrap());
-
         let now = Instant::now();
         // Inference loop
-        let mut index_pos_acc = index_pos;
+        let mut index_pos = 0;
         for _i in 0..sample_len {
-            println!("index_pos {:?}", index_pos_acc);
-            // From here seed the generation with the accumulated tokens
-            let prompt = tokens.join("");
-            let (token, index_pos) = pipeline
-                .next_token(
-                    prompt.clone(),
-                    repeat_penalty,
-                    repeat_last_n as usize,
-                    index_pos_acc,
-                )
-                .unwrap();
-            index_pos_acc = index_pos;
-            //TODO we sometime call unwrap on a None value here somehow...
-            //I think that we can consider None to signify that there are no more tokens to
-            //generate
-            match token {
-                Some(t) => {
-                    println!("token {:?}", t);
-                    tokens.push(t)
+            match pipeline.next_token(prompt.clone(), repeat_penalty, repeat_last_n, index_pos) {
+                Ok((Some(next_token), new_index_pos)) => {
+                    prompt.push_str(&next_token);
+                    tokens.push(next_token);
+                    index_pos = new_index_pos;
                 }
-                None => {}
+                Ok((None, _)) => {}
+                Err(e) => {
+                    println!("error {:?}", e);
+                    break;
+                }
             }
         }
         let elapsed = now.elapsed();
 
         println!("Took {:.2?} to complete inference", elapsed);
-        println!("{:?} tok/s", tokens.len() as u64 / elapsed.as_secs());
+        //println!("{:?} tok/s", tokens.len() as u64 / elapsed.as_secs());
         println!("Generated:");
         println!("{:?}", tokens.join(""));
         Ok(())
