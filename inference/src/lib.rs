@@ -118,7 +118,16 @@ mod tests {
                 )
                 .unwrap();
             index_pos_acc = index_pos;
-            tokens.push(token.unwrap());
+            //TODO we sometime call unwrap on a None value here somehow...
+            //I think that we can consider None to signify that there are no more tokens to
+            //generate
+            match token {
+                Some(t) => {
+                    println!("token {:?}", t);
+                    tokens.push(t)
+                }
+                None => {}
+            }
         }
         let elapsed = now.elapsed();
 

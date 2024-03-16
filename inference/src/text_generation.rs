@@ -156,7 +156,7 @@ impl TextGeneration {
         let model = self.model.clone();
         let model = model.lock().unwrap();
 
-        let context_size = tokens.len();
+        let context_size = if index_pos > 0 { 1 } else { tokens.len() };
         // TODO: need to look into rewriting to reduce uses of clones
         let ctxt = &tokens.clone()[tokens.len().saturating_sub(context_size)..];
         let input = Tensor::new(ctxt, &self.device)?.unsqueeze(0)?;
