@@ -37,7 +37,7 @@ pub struct TextGeneration {
     logits_processor: Arc<Mutex<LogitsProcessor>>,
     tokens: Vec<String>,
     cache: Cache,
-    config: Config,
+    pub config: Config,
 }
 
 impl TextGeneration {

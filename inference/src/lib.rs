@@ -99,6 +99,9 @@ mod tests {
         // Inference loop
         let mut index_pos = 0;
         for _i in 0..sample_len {
+            if prompt.len() > pipeline.config.seq_len {
+                break;
+            }
             match pipeline.next_token(prompt.clone(), repeat_penalty, repeat_last_n, index_pos) {
                 Ok((Some(next_token), new_index_pos)) => {
                     prompt.push_str(&next_token);
