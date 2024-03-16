@@ -72,60 +72,60 @@ mod tests {
     #[test]
     fn test_textgeneration_run() -> Result<(), anyhow::Error> {
         use std::io::Write;
-        use std::sync::mpsc::{self, Receiver, Sender};
-        use std::thread;
         use std::time::Instant;
 
         let prompt = "What is the capital Ireland?".to_string();
+        let repeat_penalty = 1.1;
+        let repeat_last_n = 64;
+        let sample_len = 255;
+        let mut tokens: Vec<String> = Vec::new();
 
         println!("Loading model");
         let now = Instant::now();
         let mut pipeline = TextGeneration::new(
             "karpathy/tinyllamas".to_string(),
             "stories15M.bin".to_string(),
+            "hf-internal-testing/llama-tokenizer".to_string(),
             None,
             None,
         )
         .unwrap();
-        /*let mut pipeline = match pipeline {
-            Ok(p) => p,
-            Err(err) => anyhow::bail!("Error: {:?}", err),
-        };*/
+
         let elapsed = now.elapsed();
         println!("Took {:.2?} to load model", elapsed);
         let _ = now;
         let _ = elapsed;
 
-        println!("Text pipeline created, beginning inference");
-
-        let (tx, rx): (Sender<String>, Receiver<String>) = mpsc::channel();
+        // Seed the generation with the passed in prompt
+        let (token, index_pos) = pipeline
+            .next_token(prompt, repeat_penalty, repeat_last_n as usize, 0)
+            .unwrap();
+        tokens.push(token.unwrap());
 
         let now = Instant::now();
-        // produce tokens
-        let handle = thread::spawn(move || {
-            pipeline.run(&prompt, 256, 64, 1.1, tx).unwrap();
-        });
-
-        // consume the tokens
-        loop {
-            match rx.try_recv() {
-                Ok(token) => {
-                    print!("{token}");
-                }
-                Err(TryRecvError::Empty) => {}
-                Err(TryRecvError::Disconnected) => {
-                    print!("All tokens consumed");
-                    break;
-                }
-            }
-            std::io::stdout().flush()?;
+        // Inference loop
+        let mut index_pos_acc = index_pos;
+        for _i in 0..sample_len {
+            println!("index_pos {:?}", index_pos_acc);
+            // From here seed the generation with the accumulated tokens
+            let prompt = tokens.join("");
+            let (token, index_pos) = pipeline
+                .next_token(
+                    prompt.clone(),
+                    repeat_penalty,
+                    repeat_last_n as usize,
+                    index_pos_acc,
+                )
+                .unwrap();
+            index_pos_acc = index_pos;
+            tokens.push(token.unwrap());
         }
-
-        // wait for the producer thread to finish
-        handle.join().unwrap();
         let elapsed = now.elapsed();
 
         println!("Took {:.2?} to complete inference", elapsed);
+        println!("{:?} tok/s", tokens.len() as u64 / elapsed.as_secs());
+        println!("Generated:");
+        println!("{:?}", tokens.join(""));
         Ok(())
     }
 }

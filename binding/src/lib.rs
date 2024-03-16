@@ -49,9 +49,6 @@ impl TextGenerator {
     #[signal]
     pub fn finished();
 
-    #[signal]
-    pub fn disconnected();
-
     #[func]
     pub fn load_model(&mut self, model_id: String, which_model: String, tokenizer_id: String) {
         let pipeline =
@@ -84,6 +81,9 @@ impl TextGenerator {
             .next_token(prompt, repeat_penalty, repeat_last_n as usize)
             .unwrap();
         self.tokens.push(token);
+
+        let tokens_string = self.tokens.join("");
+        godot_print!("{tokens_string:?}");
 
         for _i in 0..sample_len {
             // From here seed the generation with the accumulated tokens

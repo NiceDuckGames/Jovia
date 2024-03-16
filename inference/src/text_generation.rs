@@ -134,16 +134,17 @@ impl TextGeneration {
         })
     }
 
+    /// Generates the next token given a prompt string which serves as the on going context.
+    /// This is intended to be used within a loop allowing the controller to manage the progress of
+    /// inference against the initial prompt. Because of this the prompt is intended to be passed
+    /// in as it accumulates previously generated tokens.
     pub fn next_token(
         &mut self,
         prompt: String,
         repeat_penalty: f32,
         repeat_last_n: usize,
-    ) -> Result<String, anyhow::Error> {
-        // Each time this is called the previous set of tokens need to be passed in
-        // this will allow it to generate the next token in the sequence.
-
-        let index_pos = self.tokens.len();
+        index_pos: usize,
+    ) -> Result<(Option<String>, usize), anyhow::Error> {
         let tokenizer = self.tokenizer.clone();
         let tokenizer = tokenizer.lock().unwrap();
         let mut tokens = tokenizer
@@ -156,9 +157,12 @@ impl TextGeneration {
         let model = model.lock().unwrap();
 
         let context_size = tokens.len();
-        let ctxt = &tokens[tokens.len().saturating_sub(context_size)..];
+        // TODO: need to look into rewriting to reduce uses of clones
+        let ctxt = &tokens.clone()[tokens.len().saturating_sub(context_size)..];
         let input = Tensor::new(ctxt, &self.device)?.unsqueeze(0)?;
+        // This seems to be breaking with a broadcast error :think:
         let logits = model.forward(&input, index_pos, &mut self.cache)?;
+        println!("got logits {:?}", logits);
         let logits = logits.i((0, logits.dim(1)? - 1))?;
         let logits = if repeat_penalty == 1. || tokens.is_empty() {
             logits
@@ -179,8 +183,7 @@ impl TextGeneration {
             .sample(&logits)?;
         tokens.push(next_token);
         let next_token = tokenizer.next_token(next_token)?;
-
-        Ok(next_token.unwrap())
+        Ok((next_token, index_pos + ctxt.len()))
     }
 
     pub fn run(
