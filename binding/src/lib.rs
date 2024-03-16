@@ -68,7 +68,8 @@ impl TextGenerator {
         repeat_penalty: f32,
         repeat_last_n: u64,
     ) {
-        // This function will
+        // This function will run an inference loop and return each token generated.
+        // It *DOES NOT* consume the token when it emits a token signal.
 
         // DEPRECATED - needed for poll()
         // TODO: remove these and poll()
@@ -77,9 +78,17 @@ impl TextGenerator {
         // DEPRECATED
 
         let mut pipeline_ref = self.pipeline.as_ref().clone().unwrap();
-        //let _ = pipeline_ref.run(&prompt, 256, 64, 1.1, tx).unwrap();
+        //let _ = pipeline_ref.run(&prompt, 255, 64, 1.1, tx).unwrap();
+
+        // Seed the generation with the passed in prompt
+        let token = pipeline_ref
+            .next_token(prompt, repeat_penalty, repeat_last_n as usize)
+            .unwrap();
+        self.tokens.push(token);
 
         for _i in 0..sample_len {
+            // From here seed the generation with the accumulated tokens
+            let prompt = self.tokens.join("");
             let token = pipeline_ref
                 .next_token(prompt.clone(), repeat_penalty, repeat_last_n as usize)
                 .unwrap();
@@ -147,7 +156,6 @@ impl Jovia {
     fn embed(sentences: Array<GString>) -> Array<Array<Array<f32>>> {
         let sentences: Vec<String> = sentences.iter_shared().map(|s| s.to_string()).collect();
 
-        // TODO: Implement a global model pool that can be passed to these methods
         let em = EmbeddingModel::new(true, false, None, None).unwrap();
         // TODO: Handle the error case here in place of .unwrap()
         let embeddings: Tensor = em.embed_batch(sentences).unwrap();
