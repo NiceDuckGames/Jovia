@@ -61,6 +61,15 @@ impl TextGenerator {
     }
 
     #[func]
+    /// Starts text generation against the loaded model.
+    /// The generated tokens are accumulated in the tokens vec of the this struct.
+    /// This function is blocking as it runs a loop against the underlying model.
+    /// It can however be called relatively safely from a multi-threaded context.
+    ///
+    /// This function will emit the "token" signal each time a new token is generated.
+    /// The "token" signal does not consume the token.
+    ///
+    /// This function will also emit the "finished" signal when generation has finished.
     pub fn prompt(
         &mut self,
         prompt: String,
@@ -68,17 +77,7 @@ impl TextGenerator {
         repeat_penalty: f32,
         repeat_last_n: u64,
     ) {
-        // This function will run an inference loop and return each token generated.
-        // It *DOES NOT* consume the token when it emits a token signal.
-
-        // DEPRECATED - needed for poll()
-        // TODO: remove these and poll()
-        let (tx, rx) = mpsc::channel::<String>();
-        self.rx = Some(rx);
-        // DEPRECATED
-
         let mut pipeline_ref = self.pipeline.as_ref().clone().unwrap();
-        //let _ = pipeline_ref.run(&prompt, 255, 64, 1.1, tx).unwrap();
 
         // Seed the generation with the passed in prompt
         let token = pipeline_ref
@@ -97,19 +96,20 @@ impl TextGenerator {
             self.base_mut()
                 .emit_signal("token".into(), &[token.clone().to_variant()]);
             self.tokens.push(token.clone());
-            let _ = tx.send(token);
         }
+
+        self.base_mut().emit_signal("finished".into(), &[]);
     }
 
     #[func]
+    /// Returns a copy of the most recent token.
     pub fn next_token() -> String {
-        // This will try to grab the next token from the tokens vector
-        // if there are no tokens then the function will return an empty string ""
-        // This will consume the token in the process
         todo!("implement")
     }
 
     #[func]
+    /// This function empties the internal vector of tokens and returns a Godot Array of the
+    /// tokens.
     pub fn consume_tokens(&mut self) -> godot::builtin::Array<GString> {
         let mut tokens_iter = self.tokens.clone();
         let tokens_drain = tokens_iter
@@ -120,33 +120,6 @@ impl TextGenerator {
             Array::from_iter(tokens_drain.into_iter());
 
         tokens_array
-    }
-
-    #[deprecated]
-    #[func]
-    pub fn poll(&mut self) -> String {
-        // TODO: remove
-        // Allows for continuous polling
-        let rx = self.rx.as_ref().unwrap();
-        let token = match rx.try_recv() {
-            Ok(token) => {
-                println!("{token:?}");
-                // consume the token
-                self.base_mut()
-                    .emit_signal("token".into(), &[token.clone().into_godot().to_variant()]);
-                token
-            }
-            Err(TryRecvError::Empty) => {
-                self.base_mut().emit_signal("finished".into(), &[]);
-                "".to_string()
-            }
-            Err(TryRecvError::Disconnected) => {
-                self.base_mut().emit_signal("disconnected".into(), &[]);
-                "".to_string()
-            }
-        };
-
-        token
     }
 }
 
