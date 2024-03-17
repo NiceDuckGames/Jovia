@@ -44,7 +44,7 @@ impl TextGenerator {
         godot_print!("Trying to load model");
         let pipeline = TextGeneration::new(
             "karpathy/tinyllamas".to_string(),
-            "stories15m.bin".to_string(),
+            "stories15M.bin".to_string(),
             None,
             None,
         )
