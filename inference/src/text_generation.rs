@@ -144,46 +144,9 @@ impl TextGeneration {
         repeat_penalty: f32,
         repeat_last_n: usize,
         index_pos: usize,
+        tokens: &mut Vec<u64>,
     ) -> Result<(Option<String>, usize), anyhow::Error> {
-        let tokenizer = self.tokenizer.clone();
-        let tokenizer = tokenizer.lock().unwrap();
-        let mut tokens = tokenizer
-            .encode(prompt, true)
-            .map_err(E::msg)?
-            .get_ids()
-            .to_vec();
-        let mut tokenizer = TokenOutputStream::new(tokenizer.to_owned());
-        let model = self.model.clone();
-        let model = model.lock().unwrap();
-
         let context_size = if index_pos > 0 { 1 } else { tokens.len() };
-        // TODO: need to look into rewriting to reduce uses of clones
-        let ctxt = &tokens.clone()[tokens.len().saturating_sub(context_size)..];
-        let input = Tensor::new(ctxt, &self.device)?.unsqueeze(0)?;
-        // This seems to be breaking with a broadcast error :think:
-        let logits = model.forward(&input, index_pos, &mut self.cache)?;
-        println!("got logits {:?}", logits);
-        let logits = logits.i((0, logits.dim(1)? - 1))?;
-        let logits = if repeat_penalty == 1. || tokens.is_empty() {
-            logits
-        } else {
-            let start_at = tokens.len().saturating_sub(repeat_last_n);
-            candle_transformers::utils::apply_repeat_penalty(
-                &logits,
-                repeat_penalty,
-                &tokens[start_at..],
-            )?
-        };
-
-        let next_token = self
-            .logits_processor
-            .clone()
-            .lock()
-            .unwrap()
-            .sample(&logits)?;
-        tokens.push(next_token);
-        let next_token = tokenizer.next_token(next_token)?;
-        Ok((next_token, index_pos + ctxt.len()))
     }
 
     pub fn run(
