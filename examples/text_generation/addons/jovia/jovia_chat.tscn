@@ -1,0 +1,31 @@
+[gd_scene load_steps=2 format=3 uid="uid://bxa3nqwph8r21"]
+
+[ext_resource type="Script" path="res://addons/jovia/jovia_chat.gd" id="1_bqgey"]
+
+[node name="JoviaChat" type="MarginContainer" node_paths=PackedStringArray("prompt_edit", "response_label")]
+size_flags_horizontal = 3
+size_flags_vertical = 3
+script = ExtResource("1_bqgey")
+prompt_edit = NodePath("VBoxContainer/HBoxContainer/PromptEdit")
+response_label = NodePath("VBoxContainer/ResponseLabel")
+
+[node name="VBoxContainer" type="VSplitContainer" parent="."]
+layout_mode = 2
+
+[node name="ResponseLabel" type="RichTextLabel" parent="VBoxContainer"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="HBoxContainer" type="HBoxContainer" parent="VBoxContainer"]
+layout_mode = 2
+
+[node name="PromptEdit" type="TextEdit" parent="VBoxContainer/HBoxContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+placeholder_text = "Prompt..."
+
+[node name="SendButton" type="Button" parent="VBoxContainer/HBoxContainer"]
+layout_mode = 2
+text = "Send"
+
+[connection signal="pressed" from="VBoxContainer/HBoxContainer/SendButton" to="." method="_on_send_button_pressed"]

@@ -13,3 +13,11 @@ config_version=5
 config/name="Text Generation"
 config/features=PackedStringArray("4.2", "Forward Plus")
 config/icon="res://icon.svg"
+
+[autoload]
+
+JoviaTest="*res://addons/jovia/jovia_test.gd"
+
+[editor_plugins]
+
+enabled=PackedStringArray("res://addons/jovia/plugin.cfg")

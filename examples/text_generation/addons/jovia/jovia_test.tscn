@@ -1,6 +1,6 @@
 [gd_scene load_steps=2 format=3 uid="uid://brhgryjxqx1v7"]
 
-[ext_resource type="Script" path="res://Jovia.gd" id="1_l57bs"]
+[ext_resource type="Script" path="res://addons/jovia/jovia_test.gd" id="1_l57bs"]
 
 [node name="Jovia" type="Node"]
 script = ExtResource("1_l57bs")
