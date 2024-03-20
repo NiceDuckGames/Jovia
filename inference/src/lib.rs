@@ -77,18 +77,21 @@ mod tests {
         let repeat_penalty = 1.1;
         let repeat_last_n = 64;
         let sample_len = 255;
-        let mut tokens: Vec<String> = Vec::new();
 
         println!("Loading model");
         let now = Instant::now();
         let mut pipeline = TextGeneration::new(
-            "karpathy/tinyllamas".to_string(),
-            "stories15M.bin".to_string(),
-            "hf-internal-testing/llama-tokenizer".to_string(),
+            "TinyLlama/TinyLlama-1.1B-Chat-v1.0".to_string(),
+            "model.safetensors".to_string(),
+            None,
+            None,
             None,
             None,
         )
         .unwrap();
+
+        let eos_token = pipeline.tokenize("</s>".to_string())?[0];
+        let mut tokens = pipeline.tokenize(prompt)?;
 
         let elapsed = now.elapsed();
         println!("Took {:.2?} to load model", elapsed);
@@ -98,29 +101,40 @@ mod tests {
         let now = Instant::now();
         // Inference loop
         let mut index_pos = 0;
-        for _i in 0..sample_len {
-            if prompt.len() > pipeline.config.seq_len {
+        let mut tokens_generated = 0;
+        for i in 0..sample_len {
+            let (context_size, context_index) = if pipeline.cache.use_kv_cache && i > 0 {
+                (1, index_pos)
+            } else {
+                (tokens.len(), 0)
+            };
+
+            let (token, new_index_pos) = pipeline.next_token(
+                tokens.clone(),
+                repeat_penalty,
+                repeat_last_n,
+                context_size,
+                context_index,
+                index_pos,
+            )?;
+
+            //println!("{:?}", pipeline.encode(&[token.clone()]));
+            tokens.push(token.clone());
+            tokens_generated += 1;
+            if token == eos_token {
+                // If we get an eos token we stop generating
                 break;
             }
-            match pipeline.next_token(prompt.clone(), repeat_penalty, repeat_last_n, index_pos) {
-                Ok((Some(next_token), new_index_pos)) => {
-                    prompt.push_str(&next_token);
-                    tokens.push(next_token);
-                    index_pos = new_index_pos;
-                }
-                Ok((None, _)) => {}
-                Err(e) => {
-                    println!("error {:?}", e);
-                    break;
-                }
-            }
+
+            index_pos += new_index_pos;
         }
         let elapsed = now.elapsed();
 
         println!("Took {:.2?} to complete inference", elapsed);
-        //println!("{:?} tok/s", tokens.len() as u64 / elapsed.as_secs());
+        println!("{:?} tok/s", tokens_generated as u64 / elapsed.as_secs());
         println!("Generated:");
-        println!("{:?}", tokens.join(""));
+        let generated_text = pipeline.encode(&tokens);
+        println!("{generated_text:?}");
         Ok(())
     }
 }

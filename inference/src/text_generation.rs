@@ -3,40 +3,22 @@ use candle_core::utils::cuda_is_available;
 use candle_core::{DType, Device, IndexOp, Tensor};
 use candle_nn::VarBuilder;
 use candle_transformers::generation::LogitsProcessor;
-use candle_transformers::models::llama2_c as model;
-use candle_transformers::models::llama2_c_weights as weights;
-use candle_transformers::models::quantized_llama2_c as qmodel;
+use candle_transformers::models::llama as model;
 use hf_hub::{Repo, RepoType};
-use model::{Cache, Config, Llama};
-use qmodel::QLlama;
+use model::{Cache, Config, Llama, LlamaConfig};
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::{Arc, Mutex};
 use tokenizers::Tokenizer;
-use weights::TransformerWeights;
-
-enum Model {
-    Llama(Llama),
-    QLlama(QLlama),
-}
-
-impl Model {
-    fn forward(&self, xs: &Tensor, pos: usize, cache: &mut Cache) -> anyhow::Result<Tensor> {
-        match self {
-            Self::Llama(l) => Ok(l.forward(xs, pos, cache)?),
-            Self::QLlama(l) => Ok(l.forward(xs, pos, cache)?),
-        }
-    }
-}
 
 #[derive(Clone)]
 pub struct TextGeneration {
-    model: Arc<Mutex<Model>>,
-    model_id: String,
-    device: Device,
-    tokenizer: Arc<Mutex<Tokenizer>>,
-    logits_processor: Arc<Mutex<LogitsProcessor>>,
-    tokens: Vec<String>,
-    cache: Cache,
+    pub model: Arc<Mutex<Llama>>,
+    pub model_id: String,
+    pub device: Device,
+    pub tokenizer: Arc<Mutex<Tokenizer>>,
+    pub logits_processor: Arc<Mutex<LogitsProcessor>>,
+    pub tokens: Vec<String>,
+    pub cache: Cache,
     pub config: Config,
 }
 
@@ -44,94 +26,78 @@ impl TextGeneration {
     pub fn new(
         model_id: String,
         which_model: String,
-        tokenizer_id: String,
+        revision: Option<String>,
+        dtype: Option<String>,
         temp: Option<f64>,
         top_p: Option<f64>,
     ) -> Result<Self, E> {
         let device = Device::Cpu;
-
-        let api = hf_hub::api::sync::Api::new()?;
-        let api = api.model(tokenizer_id.clone());
-        let tokenizer_path = api.get("tokenizer.json")?;
-        let tokenizer = match Tokenizer::from_file(tokenizer_path) {
-            Ok(f) => f,
-            Err(err) => panic!("Error loading tokenizer file: {:?}", err),
-        };
-        let tokenizer = Arc::new(Mutex::new(tokenizer));
-
-        // Get the model loaded up
-        let api = hf_hub::api::sync::Api::new()?;
-        let api = api.model(model_id.clone());
-
-        let config_path = api.get(&which_model)?;
-
-        let is_gguf = config_path.extension().map_or(false, |v| v == "gguf");
-        println!("Model is gguf: {:?}", is_gguf);
-
-        let (model, config, cache) = if is_gguf {
-            // Only support gguf for now
-            let vb = qmodel::VarBuilder::from_gguf(config_path, &device)?;
-            let (_vocab_size, dim) = vb
-                .get_no_shape("model.embed_tokens.weight")?
-                .shape()
-                .dims2()?;
-            let config = match dim {
-                64 => Config::tiny_260k(),
-                288 => Config::tiny_15m(),
-                512 => Config::tiny_42m(),
-                768 => Config::tiny_110m(),
-                _ => anyhow::bail!("no config for dim {dim}"),
-            };
-            let freq_cis_real = vb
-                .get(
-                    (config.seq_len, config.head_size() / 2),
-                    "rot.freq_cis_real",
-                )?
-                .dequantize(&device)?;
-            let freq_cis_imag = vb
-                .get(
-                    (config.seq_len, config.head_size() / 2),
-                    "rot.freq_cis_imag",
-                )?
-                .dequantize(&device)?;
-
-            let fake_vb = candle_nn::VarBuilder::from_tensors(
-                [
-                    ("freq_cis_real".to_string(), freq_cis_real),
-                    ("freq_cis_imag".to_string(), freq_cis_imag),
-                ]
-                .into_iter()
-                .collect(),
-                candle_core::DType::F32,
-                &device,
-            );
-            let cache = model::Cache::new(true, &config, fake_vb)?;
-            let model = Model::QLlama(QLlama::load(vb, config.clone())?);
-            (model, config, cache)
-        } else {
-            // bin
-            let mut file = std::fs::File::open(config_path)?;
-            let config = Config::from_reader(&mut file)?;
-            println!("{config:?}");
-            let weights = TransformerWeights::from_reader(&mut file, &config, &device)?;
-            let vb = weights.var_builder(&config, &device)?;
-            let cache = model::Cache::new(true, &config, vb.pp("rot"))?;
-            let model = Model::Llama(Llama::load(vb, config.clone())?);
-            (model, config, cache)
+        let dtype = match dtype.as_deref() {
+            Some("f16") => DType::F16,
+            Some("bf16") => DType::BF16,
+            Some("f32") => DType::F32,
+            Some(dtype) => anyhow::bail!("Unsupported dtype {dtype}"),
+            None => DType::F16,
         };
 
+        let (llama, tokenizer_filename, mut cache, config) = {
+            let api = hf_hub::api::sync::Api::new()?;
+            let revision = revision.unwrap_or("main".to_string());
+            let api = api.repo(Repo::with_revision(
+                model_id.clone(),
+                RepoType::Model,
+                revision,
+            ));
+            let tokenizer_filename = api.get("tokenizer.json")?;
+            let config_filename = api.get("config.json")?;
+            let config: LlamaConfig = serde_json::from_slice(&std::fs::read(config_filename)?)?;
+            let config = config.into_config(false);
+            let filenames = vec![api.get("model.safetensors")?];
+            let cache = model::Cache::new(true, dtype, &config, &device)?;
+            let vb = unsafe { VarBuilder::from_mmaped_safetensors(&filenames, dtype, &device)? };
+
+            (Llama::load(vb, &config)?, tokenizer_filename, cache, config)
+        };
+
+        let tokenizer = Tokenizer::from_file(tokenizer_filename).map_err(E::msg)?;
         let logits_processor = LogitsProcessor::new(299792458, temp, top_p);
 
         Ok(Self {
-            model: Arc::new(Mutex::new(model)),
+            model: Arc::new(Mutex::new(llama)),
             model_id,
             device,
-            tokenizer,
+            tokenizer: Arc::new(Mutex::new(tokenizer)),
             tokens: Vec::new(),
             logits_processor: Arc::new(Mutex::new(logits_processor)),
             cache,
             config,
         })
+    }
+
+    pub fn tokenize(&self, input: String) -> Result<Vec<u32>, anyhow::Error> {
+        Ok(self
+            .tokenizer
+            .clone()
+            .lock()
+            .unwrap()
+            .encode(input, true)
+            .map_err(E::msg)?
+            .get_ids()
+            .to_vec())
+    }
+
+    pub fn encode(&self, tokens: &[u32]) -> String {
+        // TODO: Figure out how to avoid cloning the tokenizer
+        let tokenizer = self.tokenizer.clone().lock().unwrap().clone();
+        let mut tokenizer = TokenOutputStream::new(tokenizer);
+
+        // TODO: look into cleaning up the double unwrap and handling the errors.
+        // probably should bubble up the option type and handle the Result here.
+        tokens
+            .iter()
+            .map(|&t| tokenizer.next_token(t).unwrap().unwrap())
+            .collect::<Vec<String>>()
+            .join("")
     }
 
     /// Generates the next token given a prompt string which serves as the on going context.
@@ -140,16 +106,52 @@ impl TextGeneration {
     /// in as it accumulates previously generated tokens.
     pub fn next_token(
         &mut self,
-        prompt: String,
+        tokens: Vec<u32>,
         repeat_penalty: f32,
         repeat_last_n: usize,
+        context_size: usize,
+        context_index: usize,
         index_pos: usize,
-        tokens: &mut Vec<u64>,
-    ) -> Result<(Option<String>, usize), anyhow::Error> {
-        let context_size = if index_pos > 0 { 1 } else { tokens.len() };
+    ) -> Result<(u32, usize), anyhow::Error> {
+        // =====
+        // dirty unwrap of our arc mutexd tokeinzer in self and a clone of the inner struct
+        // So when we prompt we are duplicating the tokenizer, but this removes a disk IO bound on
+        // prompting.
+        // =====
+        //let tokenizer = self.tokenizer.clone().lock().unwrap().clone();
+
+        let ctxt = &tokens[tokens.len().saturating_sub(context_size)..];
+        let input = Tensor::new(ctxt, &self.device)?.unsqueeze(0)?;
+        let logits =
+            self.model
+                .clone()
+                .lock()
+                .unwrap()
+                .forward(&input, context_index, &mut self.cache)?;
+        let logits = logits.squeeze(0)?;
+        let logits = if repeat_penalty == 1. {
+            logits
+        } else {
+            let start_at = tokens.len().saturating_sub(repeat_last_n);
+            candle_transformers::utils::apply_repeat_penalty(
+                &logits,
+                repeat_penalty,
+                &tokens[start_at..],
+            )?
+        };
+
+        let next_token = self
+            .logits_processor
+            .clone()
+            .lock()
+            .unwrap()
+            .sample(&logits)?;
+        // Return the next token and the updated index position for iteration control
+        // by the caller of this function.
+        Ok((next_token, index_pos + ctxt.len()))
     }
 
-    pub fn run(
+    /*pub fn run(
         &mut self,
         prompt: &str,
         sample_len: usize,
@@ -157,55 +159,7 @@ impl TextGeneration {
         repeat_penalty: f32,
         tx: mpsc::Sender<String>,
     ) -> Result<f64, anyhow::Error> {
-        let mut index_pos = 0;
-        let tokenizer = self.tokenizer.clone();
-        let tokenizer = tokenizer.lock().unwrap();
-        let mut tokens = tokenizer
-            .encode(prompt, true)
-            .map_err(E::msg)?
-            .get_ids()
-            .to_vec();
-        let mut tokenizer = TokenOutputStream::new(tokenizer.to_owned());
-        let model = self.model.clone();
-        let model = model.lock().unwrap();
-
-        let start_gen = std::time::Instant::now();
-        for index in 0.. {
-            if tokens.len() >= self.config.seq_len {
-                break;
-            }
-            let context_size = if index > 0 { 1 } else { tokens.len() };
-            let ctxt = &tokens[tokens.len().saturating_sub(context_size)..];
-            let input = Tensor::new(ctxt, &self.device)?.unsqueeze(0)?;
-            let logits = model.forward(&input, index_pos, &mut self.cache)?;
-            let logits = logits.i((0, logits.dim(1)? - 1))?;
-            let logits = if repeat_penalty == 1. || tokens.is_empty() {
-                logits
-            } else {
-                let start_at = tokens.len().saturating_sub(repeat_last_n);
-                candle_transformers::utils::apply_repeat_penalty(
-                    &logits,
-                    repeat_penalty,
-                    &tokens[start_at..],
-                )?
-            };
-            index_pos += ctxt.len();
-
-            let next_token = self
-                .logits_processor
-                .clone()
-                .lock()
-                .unwrap()
-                .sample(&logits)?;
-            tokens.push(next_token);
-            if let Some(t) = tokenizer.next_token(next_token)? {
-                let _ = tx.send(t);
-            }
-        }
-
-        let dt = start_gen.elapsed();
-        Ok(tokens.len() as f64 / dt.as_secs_f64())
-    }
+    }*/
 }
 
 /// This is a wrapper around a tokenizer to ensure that tokens can be returned to the user in a
