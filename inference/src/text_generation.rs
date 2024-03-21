@@ -10,13 +10,14 @@ use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::{Arc, Mutex};
 use tokenizers::Tokenizer;
 
-#[derive(Clone)]
+//#[derive(Clone)]
 pub struct TextGeneration {
-    pub model: Arc<Mutex<Llama>>,
+    pub model: Llama,
     pub model_id: String,
     pub device: Device,
-    pub tokenizer: Arc<Mutex<Tokenizer>>,
-    pub logits_processor: Arc<Mutex<LogitsProcessor>>,
+    pub tokenizer: Tokenizer,
+    //token_output_stream: TokenOutputStream,
+    pub logits_processor: LogitsProcessor,
     pub tokens: Vec<String>,
     pub cache: Cache,
     pub config: Config,
@@ -63,12 +64,12 @@ impl TextGeneration {
         let logits_processor = LogitsProcessor::new(299792458, temp, top_p);
 
         Ok(Self {
-            model: Arc::new(Mutex::new(llama)),
+            model: llama,
             model_id,
             device,
-            tokenizer: Arc::new(Mutex::new(tokenizer)),
+            tokenizer,
             tokens: Vec::new(),
-            logits_processor: Arc::new(Mutex::new(logits_processor)),
+            logits_processor,
             cache,
             config,
         })
@@ -77,57 +78,30 @@ impl TextGeneration {
     pub fn tokenize(&self, input: String) -> Result<Vec<u32>, anyhow::Error> {
         Ok(self
             .tokenizer
-            .clone()
-            .lock()
-            .unwrap()
             .encode(input, true)
             .map_err(E::msg)?
             .get_ids()
             .to_vec())
     }
 
-    pub fn encode(&self, tokens: &[u32]) -> String {
+    pub fn decode(&self, tokens: &[u32]) -> String {
         // TODO: Figure out how to avoid cloning the tokenizer
-        let tokenizer = self.tokenizer.clone().lock().unwrap().clone();
-        let mut tokenizer = TokenOutputStream::new(tokenizer);
-
-        // TODO: look into cleaning up the double unwrap and handling the errors.
-        // probably should bubble up the option type and handle the Result here.
-        tokens
-            .iter()
-            .map(|&t| tokenizer.next_token(t).unwrap().unwrap())
-            .collect::<Vec<String>>()
-            .join("")
+        let tokenizer = self.tokenizer.clone();
+        let tokenizer = TokenOutputStream::new(tokenizer);
+        tokenizer.decode(tokens).unwrap_or("".to_string())
     }
 
-    /// Generates the next token given a prompt string which serves as the on going context.
-    /// This is intended to be used within a loop allowing the controller to manage the progress of
-    /// inference against the initial prompt. Because of this the prompt is intended to be passed
-    /// in as it accumulates previously generated tokens.
     pub fn next_token(
         &mut self,
-        tokens: Vec<u32>,
+        tokens: &Vec<u32>,
         repeat_penalty: f32,
         repeat_last_n: usize,
         context_size: usize,
         context_index: usize,
-        index_pos: usize,
     ) -> Result<(u32, usize), anyhow::Error> {
-        // =====
-        // dirty unwrap of our arc mutexd tokeinzer in self and a clone of the inner struct
-        // So when we prompt we are duplicating the tokenizer, but this removes a disk IO bound on
-        // prompting.
-        // =====
-        //let tokenizer = self.tokenizer.clone().lock().unwrap().clone();
-
         let ctxt = &tokens[tokens.len().saturating_sub(context_size)..];
         let input = Tensor::new(ctxt, &self.device)?.unsqueeze(0)?;
-        let logits =
-            self.model
-                .clone()
-                .lock()
-                .unwrap()
-                .forward(&input, context_index, &mut self.cache)?;
+        let logits = self.model.forward(&input, context_index, &mut self.cache)?;
         let logits = logits.squeeze(0)?;
         let logits = if repeat_penalty == 1. {
             logits
@@ -140,26 +114,9 @@ impl TextGeneration {
             )?
         };
 
-        let next_token = self
-            .logits_processor
-            .clone()
-            .lock()
-            .unwrap()
-            .sample(&logits)?;
-        // Return the next token and the updated index position for iteration control
-        // by the caller of this function.
-        Ok((next_token, index_pos + ctxt.len()))
+        let next_token = self.logits_processor.sample(&logits)?;
+        Ok((next_token, ctxt.len()))
     }
-
-    /*pub fn run(
-        &mut self,
-        prompt: &str,
-        sample_len: usize,
-        repeat_last_n: usize,
-        repeat_penalty: f32,
-        tx: mpsc::Sender<String>,
-    ) -> Result<f64, anyhow::Error> {
-    }*/
 }
 
 /// This is a wrapper around a tokenizer to ensure that tokens can be returned to the user in a

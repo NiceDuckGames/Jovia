@@ -14,3 +14,4 @@ inference = { path = "../inference" }
 candle-core = { version = "0.3.3", workspace = true }
 candle-nn = { version = "0.3.3", workspace = true }
 candle-transformers = { version = "0.3.3", workspace = true }
+anyhow = "1.0.81"

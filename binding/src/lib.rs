@@ -1,3 +1,4 @@
+use anyhow::{Error as E, Result};
 use candle_core::Tensor;
 use godot::engine::IObject;
 use godot::engine::Object;
@@ -5,14 +6,9 @@ use godot::obj::WithBaseField;
 use godot::prelude::*;
 use inference::embedding::EmbeddingModel;
 use inference::text_generation::TextGeneration;
-use std::rc::Rc;
-use std::sync::mpsc;
+use std::borrow::BorrowMut;
+use std::cell::RefCell;
 use std::sync::mpsc::Receiver;
-use std::sync::mpsc::TryRecvError;
-use std::sync::Arc;
-use std::sync::Mutex;
-use std::thread;
-use std::time::Duration;
 
 #[gdextension]
 unsafe impl ExtensionLibrary for Jovia {}
@@ -21,7 +17,7 @@ unsafe impl ExtensionLibrary for Jovia {}
 #[class(base=Object)]
 pub struct TextGenerator {
     base: Base<Object>,
-    pipeline: Rc<Option<TextGeneration>>,
+    pipeline: RefCell<Option<TextGeneration>>,
     tokens: Vec<String>,
     rx: Option<Receiver<String>>,
 }
@@ -31,7 +27,7 @@ impl IObject for TextGenerator {
     fn init(base: Base<Object>) -> Self {
         Self {
             base,
-            pipeline: Rc::new(None),
+            pipeline: RefCell::new(None),
             rx: None,
             tokens: Vec::new(),
         }
@@ -50,10 +46,9 @@ impl TextGenerator {
     pub fn finished();
 
     #[func]
-    pub fn load_model(&mut self, model_id: String, which_model: String, tokenizer_id: String) {
-        let pipeline =
-            TextGeneration::new(model_id, which_model, tokenizer_id, None, None).unwrap();
-        self.pipeline = Rc::new(Some(pipeline));
+    pub fn load_model(&mut self, model_id: String, which_model: String) {
+        let pipeline = TextGeneration::new(model_id, which_model, None, None, None, None).unwrap();
+        self.pipeline = RefCell::new(Some(pipeline));
         self.base_mut().emit_signal("loaded".into(), &[]);
     }
 
@@ -69,42 +64,80 @@ impl TextGenerator {
     /// This function will also emit the "finished" signal when generation has finished.
     pub fn prompt(
         &mut self,
+        system: String,
         prompt: String,
         sample_len: i32,
         repeat_penalty: f32,
         repeat_last_n: u64,
     ) {
-        let mut pipeline_ref = self.pipeline.as_ref().clone().unwrap();
-
-        // Seed the generation with the passed in prompt
-        let token = pipeline_ref
-            .next_token(prompt, repeat_penalty, repeat_last_n as usize)
+        let eos_token_id = self
+            .pipeline
+            .borrow_mut()
+            .unwrap()
+            .tokenizer
+            .token_to_id("</s>")
             .unwrap();
-        self.tokens.push(token);
+        let prompt_template =
+            "<|system|>{system}</s>\n<|user|>{prompt}</s>\n<|assistant|>".to_string();
 
-        let tokens_string = self.tokens.join("");
-        godot_print!("{tokens_string:?}");
+        let mut tokens = self
+            .pipeline
+            .borrow_mut()
+            .unwrap()
+            .tokenizer
+            .encode(prompt.clone(), true)
+            .map_err(E::msg)
+            .unwrap()
+            .get_ids()
+            .to_vec();
 
-        for _i in 0..sample_len {
-            // From here seed the generation with the accumulated tokens
-            let prompt = self.tokens.join("");
-            let token = pipeline_ref
-                .next_token(prompt.clone(), repeat_penalty, repeat_last_n as usize)
+        println!("Starting the inference loop");
+        println!("{prompt:?}");
+        // Inference loop
+        let mut index_pos = 0;
+        let mut tokens_generated = 0;
+        for i in 0..sample_len {
+            let (context_size, context_index) = if self
+                .pipeline
+                .borrow_mut()
+                .as_ref()
+                .unwrap()
+                .cache
+                .use_kv_cache
+                && i > 0
+            {
+                (1, index_pos)
+            } else {
+                (tokens.len(), 0)
+            };
+
+            let (token, ctxt_len) = self
+                .pipeline
+                .borrow_mut()
+                .as_ref()
+                .unwrap()
+                .next_token(
+                    &tokens,
+                    repeat_penalty,
+                    repeat_last_n.try_into().unwrap(),
+                    context_size,
+                    context_index,
+                )
                 .unwrap();
-            // emit the token signal
-            // this does not consume the token from the internal vector
+
+            index_pos += ctxt_len;
+
+            let decoded_token = self.pipeline.borrow_mut().unwrap().decode(&[token.clone()]);
             self.base_mut()
-                .emit_signal("token".into(), &[token.clone().to_variant()]);
-            self.tokens.push(token.clone());
+                .emit_signal("token".into(), &[decoded_token.to_variant()]);
+            tokens_generated += 1;
+            tokens.push(token);
+            if token == eos_token_id {
+                // If we get an eos token we stop generating
+                break;
+            }
         }
-
         self.base_mut().emit_signal("finished".into(), &[]);
-    }
-
-    #[func]
-    /// Returns a copy of the most recent token.
-    pub fn next_token() -> String {
-        todo!("implement")
     }
 
     #[func]

@@ -73,7 +73,13 @@ mod tests {
     fn test_textgeneration_run() -> Result<(), anyhow::Error> {
         use std::time::Instant;
 
-        let mut prompt = "Once upon a time ".to_string();
+        let prompt = "<|system|>
+You are a friendly chatbot who always responds in the style of a pirate.</s>
+<|user|>
+How many helicopters can a human eat in one sitting?</s>
+<|assistant|>
+"
+        .to_string();
         let repeat_penalty = 1.1;
         let repeat_last_n = 64;
         let sample_len = 255;
@@ -91,17 +97,25 @@ mod tests {
         .unwrap();
 
         let eos_token = pipeline.tokenize("</s>".to_string())?[0];
-        let mut tokens = pipeline.tokenize(prompt)?;
+
+        let mut tokens = pipeline
+            .tokenizer
+            .encode(prompt.clone(), true)
+            .map_err(E::msg)?
+            .get_ids()
+            .to_vec();
 
         let elapsed = now.elapsed();
         println!("Took {:.2?} to load model", elapsed);
         let _ = now;
         let _ = elapsed;
 
-        let now = Instant::now();
+        println!("Starting the inference loop");
+        println!("{prompt:?}");
         // Inference loop
         let mut index_pos = 0;
         let mut tokens_generated = 0;
+        let now = Instant::now();
         for i in 0..sample_len {
             let (context_size, context_index) = if pipeline.cache.use_kv_cache && i > 0 {
                 (1, index_pos)
@@ -109,31 +123,31 @@ mod tests {
                 (tokens.len(), 0)
             };
 
-            let (token, new_index_pos) = pipeline.next_token(
-                tokens.clone(),
+            let (token, ctxt_len) = pipeline.next_token(
+                &tokens,
                 repeat_penalty,
                 repeat_last_n,
                 context_size,
                 context_index,
-                index_pos,
             )?;
 
-            //println!("{:?}", pipeline.encode(&[token.clone()]));
-            tokens.push(token.clone());
+            index_pos += ctxt_len;
+
+            println!("{:?}", pipeline.decode(&[token.clone()]));
             tokens_generated += 1;
+            tokens.push(token);
             if token == eos_token {
                 // If we get an eos token we stop generating
                 break;
             }
-
-            index_pos += new_index_pos;
         }
         let elapsed = now.elapsed();
 
         println!("Took {:.2?} to complete inference", elapsed);
         println!("{:?} tok/s", tokens_generated as u64 / elapsed.as_secs());
         println!("Generated:");
-        let generated_text = pipeline.encode(&tokens);
+        println!("{tokens:?}");
+        let generated_text = pipeline.decode(&tokens);
         println!("{generated_text:?}");
         Ok(())
     }
