@@ -73,6 +73,7 @@ impl TextGenerator {
         let eos_token_id = self
             .pipeline
             .borrow_mut()
+            .as_mut()
             .unwrap()
             .tokenizer
             .token_to_id("</s>")
@@ -83,6 +84,7 @@ impl TextGenerator {
         let mut tokens = self
             .pipeline
             .borrow_mut()
+            .as_mut()
             .unwrap()
             .tokenizer
             .encode(prompt.clone(), true)
@@ -95,7 +97,6 @@ impl TextGenerator {
         println!("{prompt:?}");
         // Inference loop
         let mut index_pos = 0;
-        let mut tokens_generated = 0;
         for i in 0..sample_len {
             let (context_size, context_index) = if self
                 .pipeline
@@ -111,26 +112,33 @@ impl TextGenerator {
                 (tokens.len(), 0)
             };
 
-            let (token, ctxt_len) = self
-                .pipeline
-                .borrow_mut()
-                .as_ref()
-                .unwrap()
-                .next_token(
-                    &tokens,
-                    repeat_penalty,
-                    repeat_last_n.try_into().unwrap(),
-                    context_size,
-                    context_index,
-                )
-                .unwrap();
+            let (token, ctxt_len) = {
+                self.pipeline
+                    .borrow_mut()
+                    .as_mut()
+                    .unwrap()
+                    .next_token(
+                        &tokens,
+                        repeat_penalty,
+                        repeat_last_n.try_into().unwrap(),
+                        context_size,
+                        context_index,
+                    )
+                    .unwrap()
+            };
 
             index_pos += ctxt_len;
 
-            let decoded_token = self.pipeline.borrow_mut().unwrap().decode(&[token.clone()]);
+            // I think I need to simplify my types...
+            let decoded_token = {
+                self.pipeline
+                    .borrow_mut()
+                    .as_mut()
+                    .unwrap()
+                    .decode(&[token.clone()])
+            };
             self.base_mut()
                 .emit_signal("token".into(), &[decoded_token.to_variant()]);
-            tokens_generated += 1;
             tokens.push(token);
             if token == eos_token_id {
                 // If we get an eos token we stop generating
