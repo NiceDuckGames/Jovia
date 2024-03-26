@@ -1,6 +1,7 @@
-/target
-/tools
-/.vscode
+src/target
+**/.godot
+**/tools
+**/.vscode
 **/*.dll
 **/*.so
 **/bin
